@@ -106,6 +106,7 @@ EOF
 show_history_menu() {
     if [ ! -f "$HISTORY_FILE" ]; then
         echo -e "${C_YELLOW}El historial está vacío.${C_RESET}"
+        sleep 1.5
         return
     fi
 
@@ -126,15 +127,18 @@ EOF
 
     if [ -z "$hist_list" ]; then
         echo -e "${C_YELLOW}El historial está vacío.${C_RESET}"
+        sleep 1.5
         return
     fi
+
+    hist_list="${hist_list}"$'\n'"🗑️  Borrar todo el historial	__CLEAR_HISTORY__"
 
     local selection
     selection=$(echo "$hist_list" | "$BIN_FZF" \
         --delimiter='\t' \
         --with-nth=1 \
-        --prompt="📜 Historial > " \
-        --header="[Enter] Ver vídeo | [ESC] Volver" \
+        --prompt="📜 Historial (máx. 50) > " \
+        --header="[Enter] Ver vídeo/playlist o Borrar | [ESC] Volver" \
         --height=60% \
         --reverse \
         --border) || true
@@ -142,9 +146,16 @@ EOF
     if [ -n "$selection" ]; then
         local id
         id=$(echo "$selection" | awk -F'\t' '{print $2}')
-        if [ -n "$id" ]; then
+        if [ "$id" = "__CLEAR_HISTORY__" ]; then
+            clear_history
+            sleep 1.5
+            return
+        elif [ -n "$id" ]; then
+            local url="$id"
+            if [[ ! "$id" =~ ^https?:// ]]; then
+                url="https://www.youtube.com/watch?v=${id}"
+            fi
             choose_action "1"
-            local url="https://www.youtube.com/watch?v=${id}"
             case "$SELECTED_ACTION" in
                 play_720)   play_videos "720" "$url" ;;
                 play_1080)  play_videos "1080" "$url" ;;
@@ -326,16 +337,22 @@ play_videos() {
         "--script-opts=ytdl_hook-ytdl_path=${BIN_YTDLP}"
         "--msg-level=all=no,statusline=status"
         "--save-position-on-quit"
+        "--ytdl-raw-options-append=extractor-args=youtube:player_client=android_creator;lang=es"
     )
     if [ ${#COOKIE_MPV_ARGS[@]} -gt 0 ]; then
         MPV_ARGS+=("${COOKIE_MPV_ARGS[@]}")
     fi
 
     if [ "$quality" = "audio" ]; then
-        echo -e "${C_CYAN}▶ Modo Solo Audio (Ahorro de RAM: ~25 MB)...${C_RESET}"
+        echo -e "${C_CYAN}▶ Modo Solo Audio (Reproductor compacto interactivo - ~25 MB RAM)...${C_RESET}"
+        echo -e "${C_YELLOW}⏳ Cargando audio/playlist... la ventana de controles abrirá en unos segundos.${C_RESET}"
         MPV_ARGS+=(
-            "--no-video"
-            "--ytdl-format=bestaudio/best"
+            "--title=YT-CLI - Reproductor de Audio"
+            "--vid=no"
+            "--force-window=yes"
+            "--geometry=560x220"
+            "--player-operation-mode=pseudo-gui"
+            "--ytdl-format=bestaudio[ext=m4a]/bestaudio/best"
         )
     else
         local ytdl_fmt=""
@@ -375,7 +392,9 @@ play_videos() {
         fi
     done
 
-    if [ ${#formatted_urls[@]} -gt 1 ]; then
+    if [ "$quality" = "audio" ]; then
+        echo -e "${C_GRAY}[Atajos Audio: 'Espacio' pausa | '←/→' retroceder/avanzar | 'l' bucle | '>/< ' sig./ant. | '9/0' vol | 'q' salir]${C_RESET}\n"
+    elif [ ${#formatted_urls[@]} -gt 1 ]; then
         echo -e "${C_GREEN}🎶 Cola activa con ${#formatted_urls[@]} elementos.${C_RESET}"
         echo -e "${C_GRAY}[Atajos MPV: '>' siguiente | '<' anterior | 'q' salir | 'Espacio' pausa | 'f' pantalla completa]${C_RESET}\n"
     else
@@ -560,6 +579,27 @@ search_and_play() {
     done
 }
 
+# Guardar enlace directo/playlist en historial y mostrar menú de acciones
+handle_direct_url() {
+    local target_url="$1"
+    local label="Enlace: ${target_url}"
+    if [[ "$target_url" == *"list="* ]]; then
+        label="Playlist: ${target_url}"
+    fi
+    record_history "$label" "$target_url"
+
+    choose_action "1"
+    case "$SELECTED_ACTION" in
+        play_720)   play_videos "720" "$target_url" ;;
+        play_1080)  play_videos "1080" "$target_url" ;;
+        play_480)   play_videos "480" "$target_url" ;;
+        play_audio) play_videos "audio" "$target_url" ;;
+        down_720)   download_videos "720" "$target_url" ;;
+        down_1080)  download_videos "1080" "$target_url" ;;
+        down_mp3)   download_music "$target_url" ;;
+    esac
+}
+
 # 10. Banner principal
 show_banner() {
     clear
@@ -571,6 +611,7 @@ show_banner() {
     echo -e "${C_GRAY}  ────────────────────────────────────────────${C_RESET}"
     echo -e "  ${C_BOLD}Cliente Multimedia: YouTube, TikTok, X, Reels y +1000 sitios${C_RESET}"
     echo -e "  ${C_GRAY}Streaming VA-API • Cola Múltiple • Descargas MP4/MP3${C_RESET}"
+    echo -e "  ${C_YELLOW}Comandos: [:h] Historial  [:clear] Borrar historial  [:c] Cookies  [q] Salir${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────${C_RESET}\n"
 }
 
@@ -664,16 +705,7 @@ main() {
             *)
                 local target="$*"
                 if [[ "$target" =~ ^https?:// ]]; then
-                    choose_action "1"
-                    case "$SELECTED_ACTION" in
-                        play_720)   play_videos "720" "$target" ;;
-                        play_1080)  play_videos "1080" "$target" ;;
-                        play_480)   play_videos "480" "$target" ;;
-                        play_audio) play_videos "audio" "$target" ;;
-                        down_720)   download_videos "720" "$target" ;;
-                        down_1080)  download_videos "1080" "$target" ;;
-                        down_mp3)   download_music "$target" ;;
-                    esac
+                    handle_direct_url "$target"
                     exit 0
                 else
                     search_and_play "$target" "ask"
@@ -697,23 +729,14 @@ main() {
         echo ""
 
         if [[ "$use_clip" =~ ^[sSyY]$ ]]; then
-            choose_action "1"
-            case "$SELECTED_ACTION" in
-                play_720)   play_videos "720" "$clipboard_url" ;;
-                play_1080)  play_videos "1080" "$clipboard_url" ;;
-                play_480)   play_videos "480" "$clipboard_url" ;;
-                play_audio) play_videos "audio" "$clipboard_url" ;;
-                down_720)   download_videos "720" "$clipboard_url" ;;
-                down_1080)  download_videos "1080" "$clipboard_url" ;;
-                down_mp3)   download_music "$clipboard_url" ;;
-            esac
+            handle_direct_url "$clipboard_url"
         fi
     fi
 
     # Bucle interactivo normal
     while true; do
         show_banner
-        echo -ne "${C_CYAN}Buscar en YouTube o pegar enlace (TikTok, X, etc.) ['q' salir]: ${C_RESET}"
+        echo -ne "${C_CYAN}Buscar, pegar enlace o comando [:h | :clear | :c | q]: ${C_RESET}"
         read -r query
 
         if [ -z "$query" ]; then
@@ -730,26 +753,24 @@ main() {
             continue
         fi
 
+        if [[ "$query" == ":clear" || "$query" == "borrar" || "$query" == "clear-history" ]]; then
+            clear_history
+            sleep 1.5
+            continue
+        fi
+
         if [[ "$query" == ":c" || "$query" == "cookies" ]]; then
             echo -ne "${C_CYAN}Introduce navegador o ruta a cookies (ej: brave, firefox, cookies.txt): ${C_RESET}"
             read -r c_input
             if [ -n "$c_input" ]; then
                 set_cookies "$c_input"
+                sleep 1.2
             fi
             continue
         fi
 
         if [[ "$query" =~ ^https?:// ]]; then
-            choose_action "1"
-            case "$SELECTED_ACTION" in
-                play_720)   play_videos "720" "$query" ;;
-                play_1080)  play_videos "1080" "$query" ;;
-                play_480)   play_videos "480" "$query" ;;
-                play_audio) play_videos "audio" "$query" ;;
-                down_720)   download_videos "720" "$query" ;;
-                down_1080)  download_videos "1080" "$query" ;;
-                down_mp3)   download_music "$query" ;;
-            esac
+            handle_direct_url "$query"
         else
             search_and_play "$query" "ask"
         fi
