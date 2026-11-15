@@ -18,7 +18,11 @@ C_BOLD="\033[1m"
 C_RESET="\033[0m"
 
 # Binaries resolution (prefer standard system paths, fallback to PATH)
-BIN_YTDLP="$(command -v yt-dlp || echo "yt-dlp")"
+if [ -x "/usr/bin/yt-dlp" ]; then
+    BIN_YTDLP="/usr/bin/yt-dlp"
+else
+    BIN_YTDLP="$(command -v yt-dlp || echo "yt-dlp")"
+fi
 BIN_FZF="$(command -v fzf || echo "fzf")"
 BIN_MPV="$(command -v mpv || echo "mpv")"
 
@@ -41,6 +45,130 @@ CURRENT_DIR_VIDEOS="$DEFAULT_DIR_VIDEOS"
 CURRENT_DIR_MUSIC="$DEFAULT_DIR_MUSIC"
 
 mkdir -p "$CURRENT_DIR_VIDEOS" "$CURRENT_DIR_MUSIC" 2>/dev/null || true
+
+# Configuración de Cookies (soporte para navegadores y archivos cookies.txt)
+COOKIE_MPV_ARGS=()
+COOKIE_YTDL_ARGS=()
+
+set_cookies() {
+    local source="$1"
+    if [ -f "$source" ]; then
+        COOKIE_YTDL_ARGS=("--cookies" "$source")
+        COOKIE_MPV_ARGS=("--ytdl-raw-options-append=cookies=${source}")
+        echo -e "${C_GREEN}✔ Usando archivo de cookies:${C_RESET} ${source}"
+    else
+        local browser_lower
+        browser_lower=$(echo "$source" | tr '[:upper:]' '[:lower:]')
+        COOKIE_YTDL_ARGS=("--cookies-from-browser" "$browser_lower")
+        COOKIE_MPV_ARGS=("--ytdl-raw-options-append=cookies-from-browser=${browser_lower}")
+        echo -e "${C_GREEN}✔ Usando cookies del navegador:${C_RESET} ${browser_lower}"
+    fi
+}
+
+# Configuración del Historial local
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/yt-cli"
+HISTORY_FILE="${CONFIG_DIR}/history.json"
+mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+
+# Guardar elemento en el historial
+record_history() {
+    local full_title="$1"
+    local vid_id="$2"
+
+    python3 - "$HISTORY_FILE" "$full_title" "$vid_id" << 'EOF' 2>/dev/null || true
+import sys, json, os, time
+path = os.path.expanduser(sys.argv[1])
+full_title = sys.argv[2]
+vid_id = sys.argv[3]
+data = {'enabled': True, 'max_items': 50, 'history': []}
+if os.path.isfile(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        pass
+if data.get('enabled', True):
+    hist = [x for x in data.get('history', []) if x.get('id') != vid_id]
+    hist.insert(0, {
+        'title': full_title,
+        'channel': 'YouTube',
+        'duration': '--:--',
+        'id': vid_id,
+        'date': time.strftime('%d/%m/%Y %H:%M')
+    })
+    data['history'] = hist[:data.get('max_items', 50)]
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+EOF
+}
+
+# Ver y seleccionar del historial
+show_history_menu() {
+    if [ ! -f "$HISTORY_FILE" ]; then
+        echo -e "${C_YELLOW}El historial está vacío.${C_RESET}"
+        return
+    fi
+
+    local hist_list
+    hist_list=$(python3 - "$HISTORY_FILE" << 'EOF' 2>/dev/null
+import sys, json, os
+path = os.path.expanduser(sys.argv[1])
+if os.path.isfile(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+            for item in d.get('history', []):
+                print(f"{item.get('title','')} [{item.get('date','')}]\t{item.get('id','')}")
+    except Exception:
+        pass
+EOF
+)
+
+    if [ -z "$hist_list" ]; then
+        echo -e "${C_YELLOW}El historial está vacío.${C_RESET}"
+        return
+    fi
+
+    local selection
+    selection=$(echo "$hist_list" | "$BIN_FZF" \
+        --delimiter='\t' \
+        --with-nth=1 \
+        --prompt="📜 Historial > " \
+        --header="[Enter] Ver vídeo | [ESC] Volver" \
+        --height=60% \
+        --reverse \
+        --border) || true
+
+    if [ -n "$selection" ]; then
+        local id
+        id=$(echo "$selection" | awk -F'\t' '{print $2}')
+        if [ -n "$id" ]; then
+            choose_action "1"
+            local url="https://www.youtube.com/watch?v=${id}"
+            case "$SELECTED_ACTION" in
+                play_720)   play_videos "720" "$url" ;;
+                play_1080)  play_videos "1080" "$url" ;;
+                play_480)   play_videos "480" "$url" ;;
+                play_audio) play_videos "audio" "$url" ;;
+                down_720)   download_videos "720" "$url" ;;
+                down_1080)  download_videos "1080" "$url" ;;
+                down_mp3)   download_music "$url" ;;
+            esac
+        fi
+    fi
+}
+
+# Borrar historial
+clear_history() {
+    python3 - "$HISTORY_FILE" << 'EOF' 2>/dev/null || true
+import sys, json, os
+path = os.path.expanduser(sys.argv[1])
+if os.path.isfile(path):
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump({'enabled': True, 'max_items': 50, 'history': []}, f, indent=2)
+EOF
+    echo -e "${C_GREEN}✔ Historial de YT-CLI eliminado por completo.${C_RESET}"
+}
 
 # Signal trap for clean exit
 trap 'echo -e "\n${C_GRAY}Saliendo de YT-CLI... Hasta luego.${C_RESET}"; exit 0' SIGINT SIGTERM
@@ -197,7 +325,11 @@ play_videos() {
     local MPV_ARGS=(
         "--script-opts=ytdl_hook-ytdl_path=${BIN_YTDLP}"
         "--msg-level=all=no,statusline=status"
+        "--save-position-on-quit"
     )
+    if [ ${#COOKIE_MPV_ARGS[@]} -gt 0 ]; then
+        MPV_ARGS+=("${COOKIE_MPV_ARGS[@]}")
+    fi
 
     if [ "$quality" = "audio" ]; then
         echo -e "${C_CYAN}▶ Modo Solo Audio (Ahorro de RAM: ~25 MB)...${C_RESET}"
@@ -271,6 +403,7 @@ download_videos() {
 
     for t in "${targets[@]}"; do
         "$BIN_YTDLP" \
+            "${COOKIE_YTDL_ARGS[@]}" \
             -c \
             -f "${ytdl_fmt}" \
             --merge-output-format mp4 \
@@ -335,6 +468,7 @@ download_music() {
 
     for t in "${targets[@]}"; do
         "$BIN_YTDLP" \
+            "${COOKIE_YTDL_ARGS[@]}" \
             -c \
             --extract-audio \
             --audio-format mp3 \
@@ -363,6 +497,7 @@ search_and_play() {
 
     local search_results
     search_results=$("$BIN_YTDLP" \
+        ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
         "ytsearch25:${query}" \
         --flat-playlist \
         --skip-download \
@@ -401,6 +536,7 @@ search_and_play() {
         while IFS=$'\t' read -r title id; do
             if [ -n "$id" ]; then
                 selected_urls+=("https://www.youtube.com/watch?v=${id}")
+                record_history "$title" "$id"
                 ((selected_count++))
             fi
         done <<< "$raw_selection"
@@ -442,23 +578,46 @@ show_banner() {
 main() {
     check_dependencies
 
-    # Si se pasa un argumento por línea de comandos
-    if [ $# -gt 0 ]; then
+    # Procesar argumentos por línea de comandos
+    while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
                 echo "Uso: yt-cli [OPCIONES] [BÚSQUEDA o ENLACE]"
                 echo ""
                 echo "Opciones:"
-                echo "  -a, --audio [query/url]     Reproducir solo el audio (Modo podcast)"
-                echo "  -d, --download [query/url]  Descargar video directamente en 720p MP4"
-                echo "  -m, --music [query/url]     Descargar canción directamente en MP3 320k"
-                echo "  -h, --help                  Mostrar esta ayuda"
+                echo "  -c, --cookies [navegador/ruta] Usar cookies para contenido restringido (ej: brave, firefox, cookies.txt)"
+                echo "  -a, --audio [query/url]       Reproducir solo el audio (Modo podcast)"
+                echo "  -d, --download [query/url]    Descargar video directamente en 720p MP4"
+                echo "  -m, --music [query/url]       Descargar canción directamente en MP3 320k"
+                echo "  -H, --history                 Abrir el historial de vídeos vistos"
+                echo "      --clear-history           Borrar todo el historial guardado"
+                echo "  -h, --help                    Mostrar esta ayuda"
                 echo ""
                 echo "Ejemplos:"
-                echo "  yt-cli                      Modo interactivo completo (con autodetección de portapapeles)"
-                echo "  yt-cli \"noticias\"          Buscar directamente y elegir del menú"
-                echo "  yt-cli -m \"linkin park\"     Buscar y descargar en MP3 directo a tu carpeta Música"
-                echo "  yt-cli https://youtu.be/... Opciones directas para un enlace"
+                echo "  yt-cli                        Modo interactivo completo (con autodetección de portapapeles)"
+                echo "  yt-cli -c brave               Iniciar modo interactivo con cookies de Brave"
+                echo "  yt-cli -c brave \"video 18+\"   Buscar con cookies de sesión activadas"
+                echo "  yt-cli -H                     Abrir el historial para reanudar cualquier vídeo"
+                echo "  yt-cli \"noticias\"            Buscar directamente y elegir del menú"
+                echo "  yt-cli -m \"linkin park\"       Buscar y descargar en MP3 directo a tu carpeta Música"
+                echo "  yt-cli https://youtu.be/...   Opciones directas para un enlace"
+                exit 0
+                ;;
+            -c|--cookies)
+                if [ $# -gt 1 ]; then
+                    set_cookies "$2"
+                    shift 2
+                else
+                    echo -e "${C_RED}[ERROR]${C_RESET} Debes indicar un navegador o ruta a cookies (ej: -c brave, -c firefox, -c cookies.txt)"
+                    exit 1
+                fi
+                ;;
+            -H|--history)
+                show_history_menu
+                exit 0
+                ;;
+            --clear-history)
+                clear_history
                 exit 0
                 ;;
             -a|--audio)
@@ -522,7 +681,7 @@ main() {
                 fi
                 ;;
         esac
-    fi
+    done
 
     # Comprobar si hay un enlace multimedia en el portapapeles al iniciar
     local clipboard_url
@@ -564,6 +723,20 @@ main() {
         if [[ "$query" == "q" || "$query" == "exit" || "$query" == "salir" ]]; then
             echo -e "${C_GRAY}Hasta luego.${C_RESET}"
             break
+        fi
+
+        if [[ "$query" == ":h" || "$query" == "historial" || "$query" == "history" ]]; then
+            show_history_menu
+            continue
+        fi
+
+        if [[ "$query" == ":c" || "$query" == "cookies" ]]; then
+            echo -ne "${C_CYAN}Introduce navegador o ruta a cookies (ej: brave, firefox, cookies.txt): ${C_RESET}"
+            read -r c_input
+            if [ -n "$c_input" ]; then
+                set_cookies "$c_input"
+            fi
+            continue
         fi
 
         if [[ "$query" =~ ^https?:// ]]; then
