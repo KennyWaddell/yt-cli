@@ -4,4 +4,7 @@ __pycache__/
 *.log
 .DS_Store
 windows/bin/*.exe
+windows/bin/*.dll
+windows/bin/*.com
+windows/_tmp_dl/
 *.zip

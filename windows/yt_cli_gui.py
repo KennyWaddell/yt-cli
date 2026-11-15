@@ -109,7 +109,10 @@ def get_binary_path(name):
         if os.path.isfile(base_bin):
             return base_bin
         return exe_name
-    # En Linux: si existe en /usr/bin, priorizarlo sobre /usr/local/bin (para evitar el sandbox de Firejail que bloquea las cookies de Brave/Chrome)
+    # En Linux: priorizar ~/.local/bin y luego /usr/bin (para evitar el sandbox de Firejail en /usr/local/bin)
+    local_user_bin = os.path.join(os.path.expanduser("~"), ".local", "bin", name)
+    if os.path.isfile(local_user_bin) and os.access(local_user_bin, os.X_OK):
+        return local_user_bin
     usr_bin = f"/usr/bin/{name}"
     if os.path.isfile(usr_bin) and os.access(usr_bin, os.X_OK):
         return usr_bin
@@ -965,7 +968,7 @@ class YtCliGUI:
             mpv_cmd,
             "--save-position-on-quit",
             f"--script-opts=ytdl_hook-ytdl_path={ytdlp_cmd}",
-            '--ytdl-raw-options=extractor-args="youtube:player_client=android_creator;lang=es"',
+            "--ytdl-raw-options=extractor-args=youtube:player_client=android_creator;lang=es",
             "--demuxer-readahead-secs=5",
             "--demuxer-max-bytes=32M"
         ]
@@ -982,6 +985,8 @@ class YtCliGUI:
             # Ventana interactiva de audio con barra de tiempo, volumen, pausa y bucle
             cmd += [
                 "--title=YT-CLI - Reproductor de Audio",
+                "--vid=no",
+                "--force-window=yes",
                 "--geometry=560x220",
                 "--player-operation-mode=pseudo-gui",
                 "--ytdl-format=bestaudio[ext=m4a]/bestaudio/best"
