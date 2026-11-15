@@ -1,12 +1,13 @@
 # 🎬 YT-CLI
 
-> **Cliente y Gestor Multimedia Ultraligero para Terminal en Linux**  
-> Diseñado específicamente para equipos de recursos limitados (Intel Celeron, Atom, ThinkPads clásicas y PCs con 2 GB de RAM).
+> **Cliente y Gestor Multimedia Ultraligero para Terminal en Linux y GUI Portable en Windows**  
+> Diseñado específicamente para equipos de recursos limitados (Intel Celeron, Atom, ThinkPads clásicas y PCs con 2 GB de RAM). Compatible con Linux y Windows 7, 8.1, 10 y 11.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-orange.svg)](#requisitos)
-[![Shell: Bash](https://img.shields.io/badge/Shell-Bash-green.svg)](#instalación)
-[![Backend: MPV & yt--dlp](https://img.shields.io/badge/Backend-MPV%20%2B%20yt--dlp-red.svg)](#características)
+[![Platform: Linux & Windows](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue.svg)](#requisitos-del-sistema)
+[![Shell: Bash](https://img.shields.io/badge/Shell-Bash-green.svg)](#instalación-rápida-en-linux)
+[![GUI: Python Tkinter](https://img.shields.io/badge/GUI-Tkinter%20(Windows)-orange.svg)](#uso-en-windows-portable)
+[![Backend: MPV & yt--dlp](https://img.shields.io/badge/Backend-MPV%20%2B%20yt--dlp-red.svg)](#características-principales)
 
 ---
 
@@ -45,9 +46,12 @@ En navegadores web modernos (Brave, Chrome, Firefox), abrir YouTube consume entr
   * **Videos en MP4:** Compatibles con cualquier reproductor, TV o móvil (con miniatura incrustada).
   * **Música en MP3:** Calidades a 320 kbps, 192 kbps o 128 kbps con carátula oficial y etiquetas ID3.
   * **Soporte para Playlists:** Descarga listas completas en lote sin interrupciones.
+* 📜 **Historial local y reanudación automática:** Recuerda tus últimos videos vistos (`yt-cli -H` o `:h`) y retoma la reproducción exactamente en el segundo donde lo dejaste (`--save-position-on-quit`). Totalmente privado, local y configurable.
+* 🍪 **Soporte de cookies de navegador:** Supera restricciones de edad o avisos de bot pasando cookies de Brave, Chrome, Firefox o Edge (`-c brave` / desplegable en GUI).
+* 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz moderna y ligera sin instalaciones complejas, con tema oscuro/claro, descargas interactivas, barra de progreso y reproductor de audio dedicado.
 * 🌐 **Soporte Multiplataforma:** No solo funciona con YouTube; puedes pegar enlaces directos de **TikTok, Twitter/X, Instagram Reels, Twitch, Reddit, SoundCloud y más de 1.000 sitios soportados**.
 * 🔔 **Notificaciones de escritorio:** Alerta nativa no bloqueante al finalizar descargas en segundo plano.
-* 🛡️ **100% Privado:** No requiere cuenta de Google, no utiliza cookies de seguimiento y no guarda historial de videos en tu disco duro.
+* 🛡️ **Privacidad y Control:** Sin telemetría ni rastreadores. Historial local opcional y posibilidad de eliminarlo con un solo comando o clic.
 
 ---
 
@@ -135,6 +139,19 @@ yt-cli -d "https://www.tiktok.com/@usuario/video/..."
 
 ---
 
+## 🪟 Uso en Windows (Versión Portable)
+
+YT-CLI incluye una versión con interfaz gráfica moderna para **Windows 7 SP1, 8.1, 10 y 11**, optimizada para funcionar sin necesidad de configuraciones complejas en la consola ni tocar el `PATH` del sistema.
+
+### Pasos rápidos:
+1. Clona o descarga la carpeta `windows/`.
+2. Ejecuta `descargar_binarios.bat` para descargar automáticamente la versión oficial de `yt-dlp.exe` a la subcarpeta `bin/`.
+3. Coloca `mpv.exe` y `ffmpeg.exe` en la subcarpeta `bin/` (o tenlos instalados en el sistema).
+4. Haz doble clic en **`YT-CLI.bat`** para abrir la interfaz gráfica.
+5. *(Opcional)*: Ejecuta `crear_acceso_directo.bat` si deseas crear un icono directo en tu Escritorio de Windows.
+
+---
+
 ## ⌨️ Atajos de Teclado en MPV
 
 | Tecla | Acción |
@@ -144,18 +161,23 @@ yt-cli -d "https://www.tiktok.com/@usuario/video/..."
 | `f` | Alternar pantalla completa |
 | `9` / `0` | Bajar / Subir volumen |
 | `←` / `→` | Retroceder / Avanzar 5 segundos |
+| `>` / `<` | Siguiente / Anterior en cola de reproducción |
 | `i` | Mostrar resolución actual, fps y códec en pantalla |
-| `Shift + i` | Mostrar panel técnico completo (GPU VA-API, dropped frames, caché) |
+| `Shift + i` | Mostrar panel técnico completo (GPU VA-API/DXVA2, dropped frames, caché) |
 
 ---
 
-## 🗺️ Roadmap (Próximas Versiones)
+## 🗺️ Roadmap
 
 - [x] Soporte para reanudación de descargas interrumpidas (`-c` / `--continue`).
 - [x] Selector interactivo de carpetas de destino (disco local, pendrives USB y rutas personalizadas).
 - [x] Cola de reproducción múltiple en FZF (marcar con tecla `Tab`).
 - [x] Detección mágica del portapapeles y notificaciones de escritorio.
-- [ ] Versión multiplataforma con GUI nativa minimalista para **Windows 7 / 8.1 / 10**.
+- [x] Historial local con reanudación automática de posición (`--save-position-on-quit`).
+- [x] Soporte para cookies de sesión de navegadores (Brave, Firefox, Chrome, Edge).
+- [x] Versión multiplataforma con GUI nativa minimalista para **Windows 7 / 8.1 / 10 / 11**.
+- [ ] Panel lateral de previsualización con *Lazy Load* (carga bajo demanda de miniaturas).
+- [ ] Compilación standalone de `YT-CLI.exe` con PyInstaller para la sección de Releases.
 
 ---
 
