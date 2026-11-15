@@ -24,44 +24,136 @@ BIN_MPV="$(command -v mpv || echo "mpv")"
 
 # Media target directories (Detect Spanish / English locales automatically)
 if [ -d "${HOME}/Descargas" ]; then
-    DIR_VIDEOS="${HOME}/Descargas/Videos"
+    DEFAULT_DIR_VIDEOS="${HOME}/Descargas/Videos"
 else
-    DIR_VIDEOS="${HOME}/Downloads/Videos"
+    DEFAULT_DIR_VIDEOS="${HOME}/Downloads/Videos"
 fi
 
 if [ -d "${HOME}/Música" ]; then
-    DIR_MUSIC="${HOME}/Música"
+    DEFAULT_DIR_MUSIC="${HOME}/Música"
 elif [ -d "${HOME}/Musica" ]; then
-    DIR_MUSIC="${HOME}/Musica"
+    DEFAULT_DIR_MUSIC="${HOME}/Musica"
 else
-    DIR_MUSIC="${HOME}/Music"
+    DEFAULT_DIR_MUSIC="${HOME}/Music"
 fi
 
-mkdir -p "$DIR_VIDEOS" "$DIR_MUSIC" 2>/dev/null || true
+CURRENT_DIR_VIDEOS="$DEFAULT_DIR_VIDEOS"
+CURRENT_DIR_MUSIC="$DEFAULT_DIR_MUSIC"
+
+mkdir -p "$CURRENT_DIR_VIDEOS" "$CURRENT_DIR_MUSIC" 2>/dev/null || true
 
 # Signal trap for clean exit
 trap 'echo -e "\n${C_GRAY}Saliendo de YT-CLI... Hasta luego.${C_RESET}"; exit 0' SIGINT SIGTERM
 
-# 1. Dependency validation
+# 1. Dependency validation with guided installation
 check_dependencies() {
-    local missing=0
+    local missing=()
     for dep in "$BIN_YTDLP" "$BIN_FZF" "$BIN_MPV"; do
         if ! command -v "$dep" >/dev/null 2>&1; then
-            echo -e "${C_RED}[ERROR]${C_RESET} Dependencia faltante: ${C_BOLD}$dep${C_RESET}"
-            missing=1
+            missing+=("$dep")
         fi
     done
-    if [ "$missing" -eq 1 ]; then
-        echo -e "${C_YELLOW}Instale las dependencias faltantes: yt-dlp, fzf y mpv.${C_RESET}"
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo -e "${C_RED}[ERROR]${C_RESET} Faltan dependencias necesarias: ${C_BOLD}${missing[*]}${C_RESET}"
+        echo -e "${C_YELLOW}Comando para instalarlas en tu sistema:${C_RESET}"
+        if command -v apt >/dev/null 2>&1; then
+            echo -e "  ${C_BOLD}sudo apt update && sudo apt install ${missing[*]}${C_RESET}"
+        elif command -v pacman >/dev/null 2>&1; then
+            echo -e "  ${C_BOLD}sudo pacman -S ${missing[*]}${C_RESET}"
+        elif command -v dnf >/dev/null 2>&1; then
+            echo -e "  ${C_BOLD}sudo dnf install ${missing[*]}${C_RESET}"
+        fi
         exit 1
+    fi
+}
+
+# 2. Notificación de escritorio nativa (no bloqueante)
+notify_user() {
+    local title="$1"
+    local message="$2"
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "$title" "$message" -i video-television 2>/dev/null || true
+    fi
+}
+
+# 3. Detección automática de enlaces en el portapapeles
+get_clipboard_url() {
+    local clip=""
+    if command -v xclip >/dev/null 2>&1; then
+        clip=$(xclip -o -selection clipboard 2>/dev/null || true)
+    elif command -v wl-paste >/dev/null 2>&1; then
+        clip=$(wl-paste 2>/dev/null || true)
+    fi
+
+    # Limpiar espacios
+    clip=$(echo "$clip" | xargs 2>/dev/null || echo "$clip")
+
+    if [[ "$clip" =~ ^https?://(www\.)?(youtube\.com|youtu\.be|tiktok\.com|twitter\.com|x\.com|instagram\.com|vimeo\.com|facebook\.com|reddit\.com|twitch\.tv|soundcloud\.com) ]]; then
+        echo "$clip"
+    fi
+}
+
+# 4. Selector de carpeta de destino interactivo
+choose_destination_folder() {
+    local type="$1" # "video" o "audio"
+    local default_folder="$CURRENT_DIR_VIDEOS"
+    [ "$type" = "audio" ] && default_folder="$CURRENT_DIR_MUSIC"
+
+    echo -e "${C_CYAN}Carpeta de destino para descarga:${C_RESET}"
+    echo -e "  ${C_BOLD}[1]${C_RESET} Predeterminada: ${C_GREEN}${default_folder}${C_RESET} ${C_YELLOW}★${C_RESET}"
+
+    # Detectar si hay pendrives o discos externos montados en /media/$USER
+    local media_dirs=()
+    if [ -d "/media/${USER}" ]; then
+        while IFS= read -r dir; do
+            [ -d "$dir" ] && media_dirs+=("$dir")
+        done < <(find "/media/${USER}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+    fi
+
+    local opt_index=2
+    if [ ${#media_dirs[@]} -gt 0 ]; then
+        for mdir in "${media_dirs[@]}"; do
+            echo -e "  ${C_BOLD}[${opt_index}]${C_RESET} Pendrive/Disco externo: ${C_CYAN}${mdir}${C_RESET}"
+            ((opt_index++))
+        done
+    fi
+
+    echo -e "  ${C_BOLD}[c]${C_RESET} Escribir otra ruta personalizada..."
+    echo ""
+    echo -ne "${C_YELLOW}Elige opción (Enter para predeterminada): ${C_RESET}"
+
+    local choice=""
+    if [ -t 0 ]; then read -r choice || choice="1"; else read -r choice </dev/tty || choice="1"; fi
+    [ -z "$choice" ] && choice="1"
+    echo ""
+
+    if [ "$choice" = "1" ]; then
+        echo "$default_folder"
+    elif [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 2 ] && [ "$choice" -lt "$opt_index" ]; then
+        local m_idx=$((choice - 2))
+        echo "${media_dirs[$m_idx]}"
+    elif [[ "$choice" =~ ^[cC]$ ]]; then
+        echo -ne "${C_CYAN}Introduce la ruta de la carpeta: ${C_RESET}"
+        local custom_path=""
+        if [ -t 0 ]; then read -r custom_path; else read -r custom_path </dev/tty; fi
+        custom_path="${custom_path/#\~/$HOME}"
+        mkdir -p "$custom_path" 2>/dev/null || true
+        echo "$custom_path"
+    else
+        echo "$default_folder"
     fi
 }
 
 SELECTED_ACTION="play_720"
 
-# 2. Interactive action menu
+# 5. Menú interactivo unificado (Reproducir / Descargar)
 choose_action() {
-    echo -e "${C_CYAN}¿Qué deseas hacer con este contenido?${C_RESET}"
+    local count="${1:-1}"
+    local label_items="este video"
+    [ "$count" -gt 1 ] && label_items="${count} videos en cola"
+
+    echo -e "${C_CYAN}¿Qué deseas hacer con ${label_items}?${C_RESET}"
     echo -e "  ${C_BOLD}── REPRODUCIR (STREAMING AL VUELO) ─────────────────${C_RESET}"
     echo -e "  ${C_BOLD}[1]${C_RESET} Ver en 720p HD a 30fps  ${C_GREEN}(Recomendado GPU VA-API)${C_RESET} ${C_YELLOW}★ Predeterminado${C_RESET}"
     echo -e "  ${C_BOLD}[2]${C_RESET} Ver en 1080p Full HD     ${C_GRAY}(30fps acelerado H.264)${C_RESET}"
@@ -69,9 +161,9 @@ choose_action() {
     echo -e "  ${C_BOLD}[4]${C_RESET} Escuchar solo audio      ${C_GRAY}(Modo radio/podcast - ~25MB RAM)${C_RESET}"
     echo ""
     echo -e "  ${C_BOLD}── DESCARGAR Y GUARDAR EN DISCO ────────────────────${C_RESET}"
-    echo -e "  ${C_BOLD}[5]${C_RESET} Descargar Video 720p     ${C_GRAY}(MP4 H.264 en ${DIR_VIDEOS})${C_RESET}"
-    echo -e "  ${C_BOLD}[6]${C_RESET} Descargar Video 1080p    ${C_GRAY}(MP4 Full HD en ${DIR_VIDEOS})${C_RESET}"
-    echo -e "  ${C_BOLD}[7]${C_RESET} Descargar Canción MP3    ${C_GRAY}(Con carátula y metadatos en ${DIR_MUSIC})${C_RESET}"
+    echo -e "  ${C_BOLD}[5]${C_RESET} Descargar Video(s) 720p  ${C_GRAY}(MP4 H.264 en disco/USB)${C_RESET}"
+    echo -e "  ${C_BOLD}[6]${C_RESET} Descargar Video(s) 1080p ${C_GRAY}(MP4 Full HD en disco/USB)${C_RESET}"
+    echo -e "  ${C_BOLD}[7]${C_RESET} Descargar Audio(s) MP3   ${C_GRAY}(Con carátula y metadatos)${C_RESET}"
     echo ""
     echo -ne "${C_YELLOW}Elige opción [1-7] (Enter para ver en 720p): ${C_RESET}"
 
@@ -96,18 +188,16 @@ choose_action() {
     esac
 }
 
-# 3. Optimized MPV playback
-play_video() {
-    local target="$1"
-    local quality="${2:-720}"
+# 6. Reproducción optimizada en MPV (con soporte para colas múltiples)
+play_videos() {
+    local quality="$1"
+    shift
+    local targets=("$@")
 
     local MPV_ARGS=(
         "--script-opts=ytdl_hook-ytdl_path=${BIN_YTDLP}"
         "--msg-level=all=no,statusline=status"
     )
-
-    local url="$target"
-    [[ "$url" =~ ^https?:// ]] && url="ytdl://${url}"
 
     if [ "$quality" = "audio" ]; then
         echo -e "${C_CYAN}▶ Modo Solo Audio (Ahorro de RAM: ~25 MB)...${C_RESET}"
@@ -143,42 +233,65 @@ play_video() {
         )
     fi
 
-    echo -e "${C_GRAY}[Atajos MPV: 'q' cerrar y volver a lista | 'Espacio' pausa | '9/0' volumen | 'f' pantalla completa]${C_RESET}"
-    echo ""
+    # Formatear URLs con prefijo ytdl://
+    local formatted_urls=()
+    for t in "${targets[@]}"; do
+        if [[ "$t" =~ ^https?:// ]]; then
+            formatted_urls+=("ytdl://${t}")
+        else
+            formatted_urls+=("$t")
+        fi
+    done
 
-    "$BIN_MPV" "${MPV_ARGS[@]}" "$url" || true
+    if [ ${#formatted_urls[@]} -gt 1 ]; then
+        echo -e "${C_GREEN}🎶 Cola activa con ${#formatted_urls[@]} elementos.${C_RESET}"
+        echo -e "${C_GRAY}[Atajos MPV: '>' siguiente | '<' anterior | 'q' salir | 'Espacio' pausa | 'f' pantalla completa]${C_RESET}\n"
+    else
+        echo -e "${C_GRAY}[Atajos MPV: 'q' cerrar y volver a lista | 'Espacio' pausa | '9/0' volumen | 'f' pantalla completa]${C_RESET}\n"
+    fi
+
+    "$BIN_MPV" "${MPV_ARGS[@]}" "${formatted_urls[@]}" || true
     echo ""
 }
 
-# 4. Optimized Video Download (MP4 / H.264 / <=30fps)
-download_video() {
-    local target="$1"
-    local height="${2:-720}"
+# 7. Descarga optimizada de video (MP4 / H.264 / Reanudación)
+download_videos() {
+    local height="$1"
+    shift
+    local targets=("$@")
 
-    mkdir -p "$DIR_VIDEOS" 2>/dev/null || true
-    echo -e "${C_CYAN}⬇ Descargando Video en ${height}p (Códec H.264 compatible / <=30fps)...${C_RESET}"
-    echo -e "${C_GRAY}Guardando en: ${DIR_VIDEOS}/${C_RESET}\n"
+    local dest_dir
+    dest_dir=$(choose_destination_folder "video")
+    mkdir -p "$dest_dir" 2>/dev/null || true
+
+    echo -e "${C_CYAN}⬇ Descargando Video(s) en ${height}p (H.264 compatible / Reanudación activa)...${C_RESET}"
+    echo -e "${C_GRAY}Guardando en: ${dest_dir}/${C_RESET}\n"
 
     local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio/best[height<=${height}]/best"
 
-    "$BIN_YTDLP" \
-        -f "${ytdl_fmt}" \
-        --merge-output-format mp4 \
-        --embed-thumbnail \
-        --embed-metadata \
-        --no-warnings \
-        -o "${DIR_VIDEOS}/%(title)s.%(ext)s" \
-        "$target" || true
+    for t in "${targets[@]}"; do
+        "$BIN_YTDLP" \
+            -c \
+            -f "${ytdl_fmt}" \
+            --merge-output-format mp4 \
+            --embed-thumbnail \
+            --embed-metadata \
+            --no-warnings \
+            -o "${dest_dir}/%(title)s.%(ext)s" \
+            "$t" || true
+    done
 
     echo -e "\n${C_GREEN}✔ Descarga de video finalizada con éxito.${C_RESET}"
+    notify_user "YT-CLI" "Descarga de video completada en ${dest_dir}"
+
     echo -ne "${C_YELLOW}Presione [Enter] para volver a la lista...${C_RESET}"
     local dummy=""
     if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
 }
 
-# 5. Optimized Music / Audio Download (MP3)
+# 8. Descarga optimizada de música (MP3 / Reanudación / Playlists)
 download_music() {
-    local target="$1"
+    local targets=("$@")
 
     echo -e "${C_CYAN}Calidad de audio para MP3:${C_RESET}"
     echo -e "  ${C_BOLD}[1]${C_RESET} 320 kbps  ${C_GREEN}(Máxima fidelidad)${C_RESET} ${C_YELLOW}★ Predeterminado${C_RESET}"
@@ -188,11 +301,7 @@ download_music() {
     echo -ne "${C_YELLOW}Elige calidad [1-3] (Enter para 320k): ${C_RESET}"
 
     local user_opt=""
-    if [ -t 0 ]; then
-        read -r user_opt || user_opt="1"
-    else
-        read -r user_opt </dev/tty || user_opt="1"
-    fi
+    if [ -t 0 ]; then read -r user_opt || user_opt="1"; else read -r user_opt </dev/tty || user_opt="1"; fi
     [ -z "$user_opt" ] && user_opt="1"
     echo ""
 
@@ -205,43 +314,47 @@ download_music() {
 
     echo -ne "${C_CYAN}¿Incrustar carátula en los MP3? [S/n] (Enter para Sí): ${C_RESET}"
     local user_cover=""
-    if [ -t 0 ]; then
-        read -r user_cover || user_cover="s"
-    else
-        read -r user_cover </dev/tty || user_cover="s"
-    fi
+    if [ -t 0 ]; then read -r user_cover || user_cover="s"; else read -r user_cover </dev/tty || user_cover="s"; fi
     [ -z "$user_cover" ] && user_cover="s"
     echo ""
 
     local EXTRA_ARGS=()
     if [[ "$user_cover" =~ ^[nN]$ ]]; then
-        echo -e "${C_YELLOW}⚡ Modo rápido: Se omitirá la carátula para máxima velocidad en la descarga.${C_RESET}"
+        echo -e "${C_YELLOW}⚡ Modo rápido: Se omitirá la carátula para máxima velocidad.${C_RESET}"
     else
         EXTRA_ARGS+=("--embed-thumbnail")
         echo -e "${C_GREEN}✔ Se incrustará la carátula oficial en cada archivo.${C_RESET}"
     fi
 
-    mkdir -p "$DIR_MUSIC" 2>/dev/null || true
-    echo -e "${C_CYAN}⬇ Descargando audio en MP3 a ${bitrate} kbps...${C_RESET}"
-    echo -e "${C_GRAY}Guardando en: ${DIR_MUSIC}/${C_RESET}\n"
+    local dest_dir
+    dest_dir=$(choose_destination_folder "audio")
+    mkdir -p "$dest_dir" 2>/dev/null || true
 
-    "$BIN_YTDLP" \
-        --extract-audio \
-        --audio-format mp3 \
-        --audio-quality "${bitrate}k" \
-        "${EXTRA_ARGS[@]}" \
-        --embed-metadata \
-        --no-warnings \
-        -o "${DIR_MUSIC}/%(playlist_title&{}/|)s%(title)s.%(ext)s" \
-        "$target" || true
+    echo -e "${C_CYAN}⬇ Descargando audio en MP3 a ${bitrate} kbps (Reanudación activa)...${C_RESET}"
+    echo -e "${C_GRAY}Guardando en: ${dest_dir}/${C_RESET}\n"
 
-    echo -e "\n${C_GREEN}✔ Descarga de audio finalizada con éxito en tu carpeta Música.${C_RESET}"
+    for t in "${targets[@]}"; do
+        "$BIN_YTDLP" \
+            -c \
+            --extract-audio \
+            --audio-format mp3 \
+            --audio-quality "${bitrate}k" \
+            "${EXTRA_ARGS[@]}" \
+            --embed-metadata \
+            --no-warnings \
+            -o "${dest_dir}/%(playlist_title&{}/|)s%(title)s.%(ext)s" \
+            "$t" || true
+    done
+
+    echo -e "\n${C_GREEN}✔ Descarga de audio finalizada con éxito.${C_RESET}"
+    notify_user "YT-CLI" "Descarga de canciones completada en ${dest_dir}"
+
     echo -ne "${C_YELLOW}Presione [Enter] para volver a la lista...${C_RESET}"
     local dummy=""
     if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
 }
 
-# 6. Interactive search loop & persistent list
+# 9. Flujo interactivo de búsqueda y cola con FZF (Multi-select)
 search_and_play() {
     local query="$1"
     local forced_mode="${2:-ask}"
@@ -265,48 +378,53 @@ search_and_play() {
     while true; do
         echo -ne "\033[2K\r"
 
-        local selection
-        selection=$(echo "$search_results" | "$BIN_FZF" \
+        local raw_selection
+        raw_selection=$(echo "$search_results" | "$BIN_FZF" \
             --delimiter='\t' \
             --with-nth=1 \
-            --prompt="▶ Selecciona video > " \
-            --header="[Enter] Opciones | [ESC] Salir de esta lista y buscar otra cosa | [Flechas] Navegar" \
+            --multi \
+            --prompt="▶ Selecciona video(s) > " \
+            --header="[Tab] Marcar varios | [Enter] Confirmar | [ESC] Salir | [Flechas] Navegar" \
             --height=70% \
             --reverse \
             --border \
             --info=inline) || true
 
-        if [ -z "$selection" ]; then
+        if [ -z "$raw_selection" ]; then
             echo -e "${C_GRAY}Saliendo de la lista actual de resultados...${C_RESET}"
             break
         fi
 
-        local video_title
-        local video_id
-        video_title=$(echo "$selection" | cut -f1)
-        video_id=$(echo "$selection" | cut -f2)
-        local video_url="https://www.youtube.com/watch?v=${video_id}"
+        # Extraer URLs de los elementos seleccionados
+        local selected_urls=()
+        local selected_count=0
+        while IFS=$'\t' read -r title id; do
+            if [ -n "$id" ]; then
+                selected_urls+=("https://www.youtube.com/watch?v=${id}")
+                ((selected_count++))
+            fi
+        done <<< "$raw_selection"
 
-        echo -e "\n${C_GREEN}✔ Seleccionado:${C_RESET} ${C_BOLD}${video_title}${C_RESET}\n"
+        echo -e "\n${C_GREEN}✔ Elementos seleccionados:${C_RESET} ${C_BOLD}${selected_count}${C_RESET}\n"
 
         if [ "$forced_mode" = "ask" ]; then
-            choose_action
+            choose_action "$selected_count"
             case "$SELECTED_ACTION" in
-                play_720)   play_video "$video_url" "720" ;;
-                play_1080)  play_video "$video_url" "1080" ;;
-                play_480)   play_video "$video_url" "480" ;;
-                play_audio) play_video "$video_url" "audio" ;;
-                down_720)   download_video "$video_url" "720" ;;
-                down_1080)  download_video "$video_url" "1080" ;;
-                down_mp3)   download_music "$video_url" ;;
+                play_720)   play_videos "720" "${selected_urls[@]}" ;;
+                play_1080)  play_videos "1080" "${selected_urls[@]}" ;;
+                play_480)   play_videos "480" "${selected_urls[@]}" ;;
+                play_audio) play_videos "audio" "${selected_urls[@]}" ;;
+                down_720)   download_videos "720" "${selected_urls[@]}" ;;
+                down_1080)  download_videos "1080" "${selected_urls[@]}" ;;
+                down_mp3)   download_music "${selected_urls[@]}" ;;
             esac
         else
-            play_video "$video_url" "$forced_mode"
+            play_videos "$forced_mode" "${selected_urls[@]}"
         fi
     done
 }
 
-# 7. Banner
+# 10. Banner principal
 show_banner() {
     clear
     echo -e "${C_CYAN}  ██╗   ██╗████████╗      ██████╗██╗     ██╗${C_RESET}"
@@ -316,14 +434,15 @@ show_banner() {
     echo -e "${C_CYAN}     ██║      ██║        ╚██████╗███████╗██║${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────${C_RESET}"
     echo -e "  ${C_BOLD}Cliente Multimedia: YouTube, TikTok, X, Reels y +1000 sitios${C_RESET}"
-    echo -e "  ${C_GRAY}Streaming VA-API • Descargas MP4 (H.264) & MP3 320k${C_RESET}"
+    echo -e "  ${C_GRAY}Streaming VA-API • Cola Múltiple • Descargas MP4/MP3${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────${C_RESET}\n"
 }
 
-# 8. Main Entrypoint
+# 11. Punto de entrada principal
 main() {
     check_dependencies
 
+    # Si se pasa un argumento por línea de comandos
     if [ $# -gt 0 ]; then
         case "$1" in
             -h|--help)
@@ -336,7 +455,7 @@ main() {
                 echo "  -h, --help                  Mostrar esta ayuda"
                 echo ""
                 echo "Ejemplos:"
-                echo "  yt-cli                      Modo interactivo completo (ver/descargar)"
+                echo "  yt-cli                      Modo interactivo completo (con autodetección de portapapeles)"
                 echo "  yt-cli \"noticias\"          Buscar directamente y elegir del menú"
                 echo "  yt-cli -m \"linkin park\"     Buscar y descargar en MP3 directo a tu carpeta Música"
                 echo "  yt-cli https://youtu.be/... Opciones directas para un enlace"
@@ -347,7 +466,7 @@ main() {
                 if [ $# -gt 0 ]; then
                     local target="$*"
                     if [[ "$target" =~ ^https?:// ]]; then
-                        play_video "$target" "audio"
+                        play_videos "audio" "$target"
                     else
                         search_and_play "$target" "audio"
                     fi
@@ -376,7 +495,7 @@ main() {
                 if [ $# -gt 0 ]; then
                     local target="$*"
                     if [[ "$target" =~ ^https?:// ]]; then
-                        download_video "$target" "720"
+                        download_videos "720" "$target"
                     else
                         search_and_play "$target" "ask"
                     fi
@@ -386,14 +505,14 @@ main() {
             *)
                 local target="$*"
                 if [[ "$target" =~ ^https?:// ]]; then
-                    choose_action
+                    choose_action "1"
                     case "$SELECTED_ACTION" in
-                        play_720)   play_video "$target" "720" ;;
-                        play_1080)  play_video "$target" "1080" ;;
-                        play_480)   play_video "$target" "480" ;;
-                        play_audio) play_video "$target" "audio" ;;
-                        down_720)   download_video "$target" "720" ;;
-                        down_1080)  download_video "$target" "1080" ;;
+                        play_720)   play_videos "720" "$target" ;;
+                        play_1080)  play_videos "1080" "$target" ;;
+                        play_480)   play_videos "480" "$target" ;;
+                        play_audio) play_videos "audio" "$target" ;;
+                        down_720)   download_videos "720" "$target" ;;
+                        down_1080)  download_videos "1080" "$target" ;;
                         down_mp3)   download_music "$target" ;;
                     esac
                     exit 0
@@ -405,6 +524,34 @@ main() {
         esac
     fi
 
+    # Comprobar si hay un enlace multimedia en el portapapeles al iniciar
+    local clipboard_url
+    clipboard_url=$(get_clipboard_url)
+    if [ -n "$clipboard_url" ]; then
+        show_banner
+        echo -e "${C_GREEN}📋 Enlace detectado en el portapapeles:${C_RESET}"
+        echo -e "   ${C_CYAN}${clipboard_url}${C_RESET}\n"
+        echo -ne "${C_YELLOW}¿Deseas abrir este enlace? [S/n] (Enter para Sí): ${C_RESET}"
+        local use_clip=""
+        if [ -t 0 ]; then read -r use_clip || use_clip="s"; else read -r use_clip </dev/tty || use_clip="s"; fi
+        [ -z "$use_clip" ] && use_clip="s"
+        echo ""
+
+        if [[ "$use_clip" =~ ^[sSyY]$ ]]; then
+            choose_action "1"
+            case "$SELECTED_ACTION" in
+                play_720)   play_videos "720" "$clipboard_url" ;;
+                play_1080)  play_videos "1080" "$clipboard_url" ;;
+                play_480)   play_videos "480" "$clipboard_url" ;;
+                play_audio) play_videos "audio" "$clipboard_url" ;;
+                down_720)   download_videos "720" "$clipboard_url" ;;
+                down_1080)  download_videos "1080" "$clipboard_url" ;;
+                down_mp3)   download_music "$clipboard_url" ;;
+            esac
+        fi
+    fi
+
+    # Bucle interactivo normal
     while true; do
         show_banner
         echo -ne "${C_CYAN}Buscar en YouTube o pegar enlace (TikTok, X, etc.) ['q' salir]: ${C_RESET}"
@@ -420,14 +567,14 @@ main() {
         fi
 
         if [[ "$query" =~ ^https?:// ]]; then
-            choose_action
+            choose_action "1"
             case "$SELECTED_ACTION" in
-                play_720)   play_video "$query" "720" ;;
-                play_1080)  play_video "$query" "1080" ;;
-                play_480)   play_video "$query" "480" ;;
-                play_audio) play_video "$query" "audio" ;;
-                down_720)   download_video "$query" "720" ;;
-                down_1080)  download_video "$query" "1080" ;;
+                play_720)   play_videos "720" "$query" ;;
+                play_1080)  play_videos "1080" "$query" ;;
+                play_480)   play_videos "480" "$query" ;;
+                play_audio) play_videos "audio" "$query" ;;
+                down_720)   download_videos "720" "$query" ;;
+                down_1080)  download_videos "1080" "$query" ;;
                 down_mp3)   download_music "$query" ;;
             esac
         else

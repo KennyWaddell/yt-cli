@@ -31,17 +31,22 @@ En navegadores web modernos (Brave, Chrome, Firefox), abrir YouTube consume entr
 ## ✨ Características Principales
 
 * 🔍 **Buscador interactivo ultrarrápido:** Filtra en tiempo real por título, duración y canal mediante el teclado con `fzf`.
+* 🎶 **Cola de reproducción y selección múltiple:** Marca varios videos o canciones con la tecla `Tab` en `fzf` para reproducirlos en cola continua en MPV (`>` siguiente / `<` anterior) o descargarlos en lote.
+* 📋 **Detección mágica del portapapeles:** Al arrancar, si tienes copiado un enlace de YouTube, TikTok, X (Twitter), etc., `yt-cli` lo detecta automáticamente y te ofrece abrirlo o descargarlo al instante.
 * 🔄 **Lista de resultados persistente:** Cuando un video termina (o pulsas `q` para cerrarlo), la lista de búsqueda anterior **reaparece al instante** sin tener que volver a escribir ni recargar.
 * 📺 **Selector de resoluciones inteligente:**
   * **720p HD a 30fps:** El equilibrio perfecto para pantallas de portátiles y bajo consumo de CPU.
   * **1080p Full HD:** Forzando códec H.264 acelerado por GPU (con fallback suave a 720p si el video no dispone de H.264 para proteger tu CPU de códecs pesados como AV1 o VP9).
   * **480p / 360p:** Para conexiones lentas o ahorro extremo de energía.
   * **Solo Audio:** Ideal para podcasts, conferencias o música de fondo consumiendo apenas 25 MB de RAM.
-* ⬇️ **Descargas completas integradas:**
+* ⬇️ **Descargas completas y reanudables:**
+  * **Reanudación automática:** Si se interrumpe la conexión, retoma la descarga en el mismo punto sin perder datos (`--continue`).
+  * **Selector de carpetas:** Permite guardar en tus carpetas del sistema, pendrives USB montados o rutas personalizadas.
   * **Videos en MP4:** Compatibles con cualquier reproductor, TV o móvil (con miniatura incrustada).
   * **Música en MP3:** Calidades a 320 kbps, 192 kbps o 128 kbps con carátula oficial y etiquetas ID3.
-  * **Soporte para Playlists:** Descarga listas completas en lote; si eliges omitir carátulas para mayor velocidad, la orden se aplica a todas las canciones automáticamente sin interrumpirte.
+  * **Soporte para Playlists:** Descarga listas completas en lote sin interrupciones.
 * 🌐 **Soporte Multiplataforma:** No solo funciona con YouTube; puedes pegar enlaces directos de **TikTok, Twitter/X, Instagram Reels, Twitch, Reddit, SoundCloud y más de 1.000 sitios soportados**.
+* 🔔 **Notificaciones de escritorio:** Alerta nativa no bloqueante al finalizar descargas en segundo plano.
 * 🛡️ **100% Privado:** No requiere cuenta de Google, no utiliza cookies de seguimiento y no guarda historial de videos en tu disco duro.
 
 ---
@@ -146,9 +151,11 @@ yt-cli -d "https://www.tiktok.com/@usuario/video/..."
 
 ## 🗺️ Roadmap (Próximas Versiones)
 
-- [ ] Soporte para reanudación de descargas interrumpidas.
-- [ ] Versión multiplataforma con GUI nativa compatible con **Windows 7 / 8.1 / 10 / 11**.
-- [ ] Selector interactivo de carpetas de destino personalizadas.
+- [x] Soporte para reanudación de descargas interrumpidas (`-c` / `--continue`).
+- [x] Selector interactivo de carpetas de destino (disco local, pendrives USB y rutas personalizadas).
+- [x] Cola de reproducción múltiple en FZF (marcar con tecla `Tab`).
+- [x] Detección mágica del portapapeles y notificaciones de escritorio.
+- [ ] Versión multiplataforma con GUI nativa minimalista para **Windows 7 / 8.1 / 10**.
 
 ---
 
