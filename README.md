@@ -139,16 +139,15 @@ yt-cli -d "https://www.tiktok.com/@usuario/video/..."
 
 ---
 
-## 🪟 Uso en Windows (Versión Portable)
+## 🪟 Uso en Windows (Versión Portable Standalone)
 
-YT-CLI incluye una versión con interfaz gráfica moderna para **Windows 7 SP1, 8.1, 10 y 11**, optimizada para funcionar sin necesidad de configuraciones complejas en la consola ni tocar el `PATH` del sistema.
+YT-CLI incluye una versión oficial con interfaz gráfica moderna y ligera para **Windows 7 SP1, 8.1, 10 y 11 (64-bit)**. No requiere instalar Python, ni configurar dependencias, ni tocar el `PATH` del sistema.
 
 ### Pasos rápidos:
-1. Clona o descarga la carpeta `windows/`.
-2. Ejecuta `descargar_binarios.bat` para descargar automáticamente la versión oficial de `yt-dlp.exe` a la subcarpeta `bin/`.
-3. Coloca `mpv.exe` y `ffmpeg.exe` en la subcarpeta `bin/` (o tenlos instalados en el sistema).
-4. Haz doble clic en **`YT-CLI.bat`** para abrir la interfaz gráfica.
-5. *(Opcional)*: Ejecuta `crear_acceso_directo.bat` si deseas crear un icono directo en tu Escritorio de Windows.
+1. Ve a la sección de [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) y descarga **`YT-CLI-Windows-Portable.zip`**.
+2. Descomprime el archivo `.zip` en la carpeta que prefieras.
+3. Haz doble clic en **`YT-CLI.exe`** para iniciar la aplicación de inmediato.
+4. *(Opcional)*: Haz clic derecho en `YT-CLI.exe` -> *Enviar a* -> *Escritorio (crear acceso directo)* para tenerlo a mano con su icono oficial.
 
 ---
 
@@ -176,8 +175,9 @@ YT-CLI incluye una versión con interfaz gráfica moderna para **Windows 7 SP1, 
 - [x] Historial local con reanudación automática de posición (`--save-position-on-quit`).
 - [x] Soporte para cookies de sesión de navegadores (Brave, Firefox, Chrome, Edge).
 - [x] Versión multiplataforma con GUI nativa minimalista para **Windows 7 / 8.1 / 10 / 11**.
-- [ ] Panel lateral de previsualización con *Lazy Load* (carga bajo demanda de miniaturas).
-- [ ] Compilación standalone de `YT-CLI.exe` con PyInstaller para la sección de Releases.
+- [x] Compilación standalone de `YT-CLI.exe` con PyInstaller y empaquetado portable para la sección de Releases.
+- [ ] Filtro y buscador directo por canal / creador de contenido específico (previsto para v1.2).
+- [ ] Previsualización con miniaturas compactas en búsquedas mediante carga asíncrona en segundo plano (previsto para v1.2).
 
 ---
 
