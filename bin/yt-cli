@@ -652,11 +652,41 @@ show_banner() {
     echo -e "${C_CYAN}   ╚████╔╝    ██║  █████╗██║     ██║     ██║${C_RESET}"
     echo -e "${C_CYAN}    ╚██╔╝     ██║  ╚════╝██║     ██║     ██║${C_RESET}"
     echo -e "${C_CYAN}     ██║      ██║        ╚██████╗███████╗██║${C_RESET}"
-    echo -e "${C_GRAY}  ────────────────────────────────────────────${C_RESET}"
+    echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}"
     echo -e "  ${C_BOLD}Cliente Multimedia: YouTube, TikTok, X, Reels y +1000 sitios${C_RESET}"
-    echo -e "  ${C_GRAY}Streaming VA-API • Cola Múltiple • Descargas MP4/MP3${C_RESET}"
-    echo -e "  ${C_YELLOW}Comandos: [:h] Historial  [:clear] Borrar historial  [:c] Cookies  [q] Salir${C_RESET}"
-    echo -e "${C_GRAY}  ────────────────────────────────────────────${C_RESET}\n"
+    echo -e "  ${C_GRAY}Aceleración HWDEC Auto • Cola FZF • Descargas MP4/MP3${C_RESET}"
+    echo -e "  ${C_YELLOW}Búsquedas: término | @canal | @canal término | enlaces URL${C_RESET}"
+    echo -e "  ${C_YELLOW}Comandos:  [:help] Ayuda  [:h] Historial  [:c] Cookies  [q] Salir${C_RESET}"
+    echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}\n"
+}
+
+# 10b. Ayuda interactiva rápida
+show_interactive_help() {
+    clear
+    echo -e "${C_CYAN}================================================================${C_RESET}"
+    echo -e "${C_BOLD}                   GUÍA RÁPIDA DE COMANDOS (YT-CLI)${C_RESET}"
+    echo -e "${C_CYAN}================================================================${C_RESET}\n"
+    echo -e "  ${C_YELLOW}Búsquedas y Enlaces:${C_RESET}"
+    echo -e "    ${C_GREEN}palabras clave${C_RESET}     Búsqueda general en YouTube (ej: noticias de hoy)"
+    echo -e "    ${C_GREEN}@canal${C_RESET}             Ver videos recientes de un canal (ej: @ElCuriosoBen)"
+    echo -e "    ${C_GREEN}@canal término${C_RESET}     Buscar dentro de un canal (ej: @DrossRotzank misterio)"
+    echo -e "    ${C_GREEN}https://...${C_RESET}        Pega enlaces de YouTube, TikTok, X, Reels, etc.\n"
+    echo -e "  ${C_YELLOW}Comandos en la consola interactiva:${C_RESET}"
+    echo -e "    ${C_GREEN}:help${C_RESET} o ${C_GREEN}:?${C_RESET}        Muestra este resumen de ayuda"
+    echo -e "    ${C_GREEN}:h${C_RESET}                 Abre el historial interactivo de reproducción"
+    echo -e "    ${C_GREEN}:clear${C_RESET}             Borra todo el historial local guardado"
+    echo -e "    ${C_GREEN}:c${C_RESET}                 Activa cookies de navegador (Brave, Firefox, etc.)"
+    echo -e "    ${C_GREEN}q${C_RESET} o ${C_GREEN}salir${C_RESET}          Cierra YT-CLI\n"
+    echo -e "  ${C_YELLOW}Opciones al arrancar desde terminal externa:${C_RESET}"
+    echo -e "    ${C_CYAN}yt-cli -a <query/url>${C_RESET}    Modo podcast (Solo audio, ~25 MB RAM)"
+    echo -e "    ${C_CYAN}yt-cli -d <query/url>${C_RESET}    Descargar directamente en MP4 (720p H.264)"
+    echo -e "    ${C_CYAN}yt-cli -m <query/url>${C_RESET}    Descargar canción directamente en MP3 (320k)"
+    echo -e "    ${C_CYAN}yt-cli -H${C_RESET}                Abrir historial directamente"
+    echo -e "    ${C_CYAN}yt-cli -h${C_RESET}                Ver todos los flags de ejecución\n"
+    echo -e "${C_CYAN}================================================================${C_RESET}"
+    echo -ne "${C_GRAY}Presiona [Enter] para volver al menú principal...${C_RESET}"
+    local _dummy=""
+    if [ -t 0 ]; then read -r _dummy; else read -r _dummy </dev/tty; fi
 }
 
 # 11. Punto de entrada principal
@@ -680,6 +710,8 @@ main() {
                 echo ""
                 echo "Ejemplos:"
                 echo "  yt-cli                        Modo interactivo completo (con autodetección de portapapeles)"
+                echo "  yt-cli \"@ElCuriosoBen\"        Ver videos recientes de un canal"
+                echo "  yt-cli \"@DrossRotzank terror\" Buscar dentro de un canal específico"
                 echo "  yt-cli -c brave               Iniciar modo interactivo con cookies de Brave"
                 echo "  yt-cli -c brave \"video 18+\"   Buscar con cookies de sesión activadas"
                 echo "  yt-cli -H                     Abrir el historial para reanudar cualquier vídeo"
@@ -780,7 +812,7 @@ main() {
     # Bucle interactivo normal
     while true; do
         show_banner
-        echo -ne "${C_CYAN}Buscar, pegar enlace o comando [:h | :clear | :c | q]: ${C_RESET}"
+        echo -ne "${C_CYAN}Buscar, pegar enlace o comando [:help | :h | @canal | q]: ${C_RESET}"
         read -r query
 
         if [ -z "$query" ]; then
@@ -790,6 +822,11 @@ main() {
         if [[ "$query" == "q" || "$query" == "exit" || "$query" == "salir" ]]; then
             echo -e "${C_GRAY}Hasta luego.${C_RESET}"
             break
+        fi
+
+        if [[ "$query" == ":help" || "$query" == ":?" || "$query" == "help" || "$query" == "ayuda" || "$query" == ":ayuda" ]]; then
+            show_interactive_help
+            continue
         fi
 
         if [[ "$query" == ":h" || "$query" == "historial" || "$query" == "history" ]]; then
