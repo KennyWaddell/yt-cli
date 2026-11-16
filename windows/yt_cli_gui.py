@@ -102,12 +102,16 @@ def get_binary_path(name):
     if IS_WINDOWS:
         exe_name = f"{name}.exe"
         app_dir = os.path.dirname(sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
-        local_bin = os.path.join(app_dir, "bin", exe_name)
-        if os.path.isfile(local_bin):
-            return local_bin
-        base_bin = os.path.join(get_base_dir(), "bin", exe_name)
-        if os.path.isfile(base_bin):
-            return base_bin
+        candidates = [
+            os.path.join(app_dir, "bin", exe_name),
+            os.path.join(app_dir, exe_name),
+            os.path.join(app_dir, "..", "bin", exe_name),
+            os.path.join(get_base_dir(), "bin", exe_name),
+            os.path.join(get_base_dir(), exe_name)
+        ]
+        for c in candidates:
+            if os.path.isfile(c):
+                return os.path.abspath(c)
         return exe_name
     # En Linux: priorizar ~/.local/bin y luego /usr/bin (para evitar el sandbox de Firejail en /usr/local/bin)
     local_user_bin = os.path.join(os.path.expanduser("~"), ".local", "bin", name)
@@ -211,6 +215,29 @@ class YtCliGUI:
 
         self.setup_ui()
         self.apply_theme(self.current_theme)
+        
+        # Asignar icono oficial tanto en script Python como en binario compilado (.exe)
+        app_dir = os.path.dirname(sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
+        ico_candidates = [
+            os.path.join(app_dir, "app.ico"),
+            os.path.join(app_dir, "..", "app.ico"),
+            os.path.join(get_base_dir(), "app.ico")
+        ]
+        ico_applied = False
+        for ico_file in ico_candidates:
+            if os.path.isfile(ico_file):
+                try:
+                    self.root.iconbitmap(ico_file)
+                    ico_applied = True
+                    break
+                except Exception:
+                    pass
+        if not ico_applied and IS_WINDOWS and getattr(sys, "frozen", False):
+            try:
+                self.root.iconbitmap(default=sys.executable)
+            except Exception:
+                pass
+
         self.check_clipboard_on_start()
         self.process_queue()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -695,8 +722,12 @@ class YtCliGUI:
 
     def _search_worker(self, query, limit):
         ytdlp_cmd = get_binary_path("yt-dlp")
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
         cmd = [
             ytdlp_cmd,
+            "--encoding", "utf-8",
             "--flat-playlist",
             "--extractor-args", "youtube:player_client=android_creator;lang=es",
             "--print", "%(title)s\t%(uploader)s\t%(duration_string)s\t%(id)s",
@@ -710,6 +741,7 @@ class YtCliGUI:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
+                env=env,
                 **SUBPROCESS_FLAGS
             )
             self.active_process = proc
@@ -967,8 +999,9 @@ class YtCliGUI:
         cmd = [
             mpv_cmd,
             "--save-position-on-quit",
+            "--watch-later-options=start",
             f"--script-opts=ytdl_hook-ytdl_path={ytdlp_cmd}",
-            "--ytdl-raw-options=extractor-args=youtube:player_client=android_creator;lang=es",
+            "--ytdl-raw-options=extractor-args=youtube:lang=es",
             "--demuxer-readahead-secs=5",
             "--demuxer-max-bytes=32M"
         ]
@@ -980,6 +1013,9 @@ class YtCliGUI:
                 cmd.append(f'--ytdl-raw-options-append=cookies-from-browser={cookie_choice.lower()}')
             else:
                 self.status_var.set(f"Aviso: Navegador {cookie_choice} no detectado. Continuando sin cookies...")
+
+        if IS_WINDOWS:
+            cmd.append("--gpu-api=d3d11")
 
         if audio_only:
             # Ventana interactiva de audio con barra de tiempo, volumen, pausa y bucle
@@ -1137,11 +1173,15 @@ class YtCliGUI:
 
             self.msg_queue.put(("status", f"Descargando [{idx}/{len(urls)}]: conectando..."))
             
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
             cmd = [
                 ytdlp_cmd,
+                "--encoding", "utf-8",
                 "-c",
                 "--no-mtime",
-                "--extractor-args", "youtube:player_client=android_creator;lang=es",
+                "--extractor-args", "youtube:lang=es",
                 "-P", self.download_dir,
                 "-o", "%(title)s.%(ext)s"
             ]
@@ -1189,6 +1229,7 @@ class YtCliGUI:
                     text=True,
                     encoding="utf-8",
                     errors="replace",
+                    env=env,
                     **SUBPROCESS_FLAGS
                 )
                 self.active_process = proc

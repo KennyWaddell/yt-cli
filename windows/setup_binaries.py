@@ -17,8 +17,9 @@ BIN_DIR = os.path.join(BASE_DIR, "bin")
 TEMP_DIR = os.path.join(BASE_DIR, "_tmp_dl")
 
 URL_YTDLP = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-URL_FFMPEG_ZIP = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+URL_FFMPEG_ZIP = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 URL_MPV_API = "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest"
+URL_VULKAN_ZIP = "https://sdk.lunarg.com/sdk/download/1.3.296.0/windows/VulkanRT-1.3.296.0-Components.zip"
 URL_7ZR = "https://www.7-zip.org/a/7zr.exe"
 
 
@@ -44,16 +45,22 @@ def download_file(url, dest_path, label):
         print()
 
 
-def setup_ytdlp():
+def setup_ytdlp(force=False):
     dest = os.path.join(BIN_DIR, "yt-dlp.exe")
-    print("\n[1/3] yt-dlp.exe")
+    print("\n[1/4] yt-dlp.exe")
+    if not force and os.path.isfile(dest):
+        print("  [OK] yt-dlp.exe ya existe en bin/ (omitido).")
+        return
     download_file(URL_YTDLP, dest, "yt-dlp.exe")
     print("  [OK] yt-dlp.exe listo.")
 
 
-def setup_ffmpeg():
+def setup_ffmpeg(force=False):
     dest = os.path.join(BIN_DIR, "ffmpeg.exe")
-    print("\n[2/3] ffmpeg.exe")
+    print("\n[2/4] ffmpeg.exe")
+    if not force and os.path.isfile(dest):
+        print("  [OK] ffmpeg.exe ya existe en bin/ (omitido).")
+        return
     zip_path = os.path.join(TEMP_DIR, "ffmpeg.zip")
     download_file(URL_FFMPEG_ZIP, zip_path, "FFmpeg (paquete oficial .zip)")
 
@@ -102,8 +109,12 @@ def find_7z_command():
     raise RuntimeError("No se encontró 7z/7za en el sistema para extraer el paquete .7z.")
 
 
-def setup_mpv():
-    print("\n[3/3] mpv.exe")
+def setup_mpv(force=False):
+    print("\n[3/4] mpv.exe")
+    dest = os.path.join(BIN_DIR, "mpv.exe")
+    if not force and os.path.isfile(dest):
+        print("  [OK] mpv.exe ya existe en bin/ (omitido).")
+        return
     mpv_url, mpv_name = get_mpv_asset_url()
     archive_path = os.path.join(TEMP_DIR, mpv_name)
     extract_dir = os.path.join(TEMP_DIR, "mpv_extract")
@@ -135,17 +146,40 @@ def setup_mpv():
     print(f"  [OK] mpv.exe listo ({copied} archivo(s) copiado(s) a bin/).")
 
 
+def setup_vulkan(force=False):
+    dest = os.path.join(BIN_DIR, "vulkan-1.dll")
+    print("\n[4/4] vulkan-1.dll (Compatibilidad universal)")
+    if not force and os.path.isfile(dest):
+        print("  [OK] vulkan-1.dll ya existe en bin/ (omitido).")
+        return
+    zip_path = os.path.join(TEMP_DIR, "vulkan.zip")
+    download_file(URL_VULKAN_ZIP, zip_path, "Vulkan Runtime Components (.zip)")
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for member in zf.namelist():
+            if member.endswith("x64/vulkan-1.dll"):
+                with zf.open(member) as src, open(dest, "wb") as out:
+                    shutil.copyfileobj(src, out)
+                break
+    if not os.path.isfile(dest):
+        raise RuntimeError("No se encontró vulkan-1.dll dentro de VulkanRT-Components.zip.")
+    print("  [OK] vulkan-1.dll listo.")
+
+
 def main():
+    force = "--force" in sys.argv or "-f" in sys.argv
     print("========================================================")
     print("       YT-CLI: Descarga Automatica de Binarios")
     print("========================================================")
+    if force:
+        print(" [MODO FORZADO] Se re-descargaran todos los binarios.")
     os.makedirs(BIN_DIR, exist_ok=True)
     os.makedirs(TEMP_DIR, exist_ok=True)
 
     try:
-        setup_ytdlp()
-        setup_ffmpeg()
-        setup_mpv()
+        setup_ytdlp(force=force)
+        setup_ffmpeg(force=force)
+        setup_mpv(force=force)
+        setup_vulkan(force=force)
         print("\n========================================================")
         print(" [COMPLETADO] Todos los binarios estan listos en bin/")
         print(" Ya puedes ejecutar YT-CLI.bat sin instalar nada mas.")

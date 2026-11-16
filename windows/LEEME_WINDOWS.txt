@@ -1,36 +1,42 @@
-﻿==============================================================================
+==============================================================================
                YT-CLI: Cliente Multimedia Ultraligero (Windows)
 ==============================================================================
 Autor: Kenny Waddell (@KennyWaddell)
 Licencia: GNU General Public License v3.0 (GPLv3)
-Web: https://github.com/KennyWaddell/yt-cli
+Repositorio: https://github.com/KennyWaddell/yt-cli
 
-DESCRIPCIÓN
+DESCRIPCION
 -----------
-YT-CLI para Windows es una interfaz gráfica moderna, nativa y ultraligera
-diseñada para buscar, reproducir y descargar contenido de YouTube, TikTok,
-Twitter/X y más de 1000 plataformas con aceleración por hardware (GPU).
+YT-CLI para Windows es una interfaz grafica moderna, nativa y ultraligera
+disenada para buscar, reproducir y descargar contenido de YouTube, TikTok,
+Twitter/X y cientos de plataformas con aceleracion por hardware (GPU).
 
 REQUISITOS
 ----------
-1. Windows 7 SP1, 8.1, 10 o 11 (32-bit o 64-bit).
-2. Python 3.8 o superior instalado (marcar casilla "Add python to PATH").
-3. Binarios multimedia en la carpeta 'bin/' o instalados en el sistema:
-   - yt-dlp.exe
-   - mpv.exe
-   - ffmpeg.exe
+1. Windows 7 SP1, 8.1, 10 u 11 (64-bit).
+2. No requiere instalar Python ni dependencias externas en el sistema.
 
-INSTRUCCIONES DE USO RÁPIDO
----------------------------
-1. Ejecuta 'descargar_binarios.bat' para obtener 'yt-dlp.exe' de forma automática.
-2. Coloca 'mpv.exe' y 'ffmpeg.exe' dentro de la subcarpeta 'bin/'.
-3. Haz doble clic en 'YT-CLI.bat' para iniciar la aplicación.
+INSTRUCCIONES DE USO
+--------------------
+1. Haz doble clic sobre "YT-CLI.exe" para iniciar la aplicacion.
+2. (Opcional) Si deseas tener un acceso directo en tu Escritorio, haz clic
+   derecho sobre "YT-CLI.exe", selecciona "Enviar a" y luego "Escritorio
+   (crear acceso directo)".
 
-CARACTERÍSTICAS
+COMPONENTES INCLUIDOS
+---------------------
+Todos los motores multimedia ya vienen incluidos dentro de la carpeta "bin/":
+  - yt-dlp.exe        (Motor de busqueda y descarga)
+  - mpv.exe / mpv.com (Reproductor multimedia de alto rendimiento)
+  - ffmpeg.exe        (Conversor y unificador de audio/video)
+  - vulkan-1.dll      (Libreria de compatibilidad grafica)
+  - d3dcompiler_43.dll
+
+CARACTERISTICAS
 ---------------
-* Streaming fluido con decodificación acelerada por hardware (D3D11 / DXVA2).
-* Descargas MP4 (360p, 480p, 720p, 1080p, 30/60 FPS) y MP3 (320k, 192k, 128k).
-* Historial local con reanudación automática donde lo dejaste.
-* Soporte para cookies de sesión de Brave, Chrome, Firefox y Edge.
+* Streaming fluido en 360p, 480p, 720p, 1080p y 60 FPS (DirectX 11 / DXVA2).
+* Descargas MP4 y MP3 (320k, 192k, 128k) con union automatica.
+* Historial local con reanudacion automatica donde lo dejaste.
+* Soporte para cookies de sesion de Brave, Chrome, Firefox y Edge.
 * Modos visuales Tema Oscuro y Tema Claro.
-* Cero consumo excesivo de memoria RAM (~22 MB).
+* Consumo ultrabajo de memoria RAM (~22 MB).
