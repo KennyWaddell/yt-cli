@@ -218,11 +218,15 @@ notify_user() {
     fi
 }
 
-# 3. Detección automática de enlaces en el portapapeles
+# 3. Detección automática de enlaces en el portapapeles (Wayland y X11)
 get_clipboard_url() {
     local clip=""
-    if command -v xclip >/dev/null 2>&1; then
+    if [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wl-paste >/dev/null 2>&1; then
+        clip=$(wl-paste 2>/dev/null || true)
+    elif command -v xclip >/dev/null 2>&1; then
         clip=$(xclip -o -selection clipboard 2>/dev/null || true)
+    elif command -v xsel >/dev/null 2>&1; then
+        clip=$(xsel --clipboard --output 2>/dev/null || true)
     elif command -v wl-paste >/dev/null 2>&1; then
         clip=$(wl-paste 2>/dev/null || true)
     fi
@@ -339,7 +343,8 @@ play_videos() {
         "--script-opts=ytdl_hook-ytdl_path=${BIN_YTDLP}"
         "--msg-level=all=no,statusline=status"
         "--save-position-on-quit"
-        "--ytdl-raw-options-append=extractor-args=youtube:player_client=android_creator;lang=es"
+        "--watch-later-options=start"
+        "--ytdl-raw-options-append=extractor-args=youtube:lang=es"
     )
     if [ ${#COOKIE_MPV_ARGS[@]} -gt 0 ]; then
         MPV_ARGS+=("${COOKIE_MPV_ARGS[@]}")
@@ -368,17 +373,17 @@ play_videos() {
                 ytdl_fmt="bestvideo[vcodec^=avc1][height<=480][fps<=30]+bestaudio/best[vcodec^=avc1][height<=480]/best[height<=480]/best"
                 ;;
             1080)
-                echo -e "${C_CYAN}▶ Reproduciendo en 1080p a 30fps (H.264 VA-API, fallback 720p)...${C_RESET}"
+                echo -e "${C_CYAN}▶ Reproduciendo en 1080p a 30fps (H.264 / auto-safe, fallback 720p)...${C_RESET}"
                 ytdl_fmt="bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio/bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[vcodec^=avc1][height<=1080]/best[vcodec^=avc1][height<=720]/best[height<=720]/best"
                 ;;
             720|*)
-                echo -e "${C_CYAN}▶ Reproduciendo en 720p (H.264 VA-API / <=30fps)...${C_RESET}"
+                echo -e "${C_CYAN}▶ Reproduciendo en 720p (H.264 / auto-safe)...${C_RESET}"
                 ytdl_fmt="bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[vcodec^=avc1][height<=720]/best[height<=720]/best"
                 ;;
         esac
 
         MPV_ARGS+=(
-            "--hwdec=vaapi"
+            "--hwdec=auto-safe"
             "--vo=gpu"
             "--ytdl-format=${ytdl_fmt}"
         )
@@ -528,21 +533,43 @@ search_and_play() {
     local query="$1"
     local forced_mode="${2:-ask}"
 
-    echo -ne "${C_YELLOW}Buscando en YouTube:${C_RESET} \"${C_BOLD}${query}${C_RESET}\"... \r"
+    local search_args=()
+    if [[ "$query" =~ ^@([a-zA-Z0-9_.-]+)[[:space:]]+(.+)$ ]]; then
+        local ch="${BASH_REMATCH[1]}"
+        local term="${BASH_REMATCH[2]}"
+        echo -ne "${C_YELLOW}Buscando en canal @${ch}:${C_RESET} \"${C_BOLD}${term}${C_RESET}\"... \r"
+        search_args=("https://www.youtube.com/@${ch}/search?query=${term}" "--playlist-end" "25")
+    elif [[ "$query" =~ ^@([a-zA-Z0-9_.-]+)$ ]]; then
+        local ch="${BASH_REMATCH[1]}"
+        echo -ne "${C_YELLOW}Obteniendo videos del canal @${ch}...${C_RESET} \r"
+        search_args=("https://www.youtube.com/@${ch}/videos" "--playlist-end" "25")
+    else
+        echo -ne "${C_YELLOW}Buscando en YouTube:${C_RESET} \"${C_BOLD}${query}${C_RESET}\"... \r"
+        search_args=("ytsearch25:${query}")
+    fi
 
     local search_results
     search_results=$("$BIN_YTDLP" \
         ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
-        "ytsearch25:${query}" \
+        "${search_args[@]}" \
         --flat-playlist \
         --skip-download \
         --no-warnings \
-        --extractor-args "youtube:player_client=android_creator;lang=es" \
+        --extractor-args "youtube:lang=es" \
         --print "%(title)s [%(duration_string)s - %(uploader)s]	%(id)s" 2>/dev/null) || true
 
     if [ -z "$search_results" ]; then
         echo -e "${C_RED}No se encontraron resultados para:${C_RESET} \"$query\""
         return
+    fi
+
+    local fzf_extra_args=()
+    if command -v chafa >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
+        mkdir -p "/tmp/yt-cli-thumbs" 2>/dev/null || true
+        fzf_extra_args+=(
+            "--preview" "id={2}; [ -n \"\$id\" ] && { [ -f /tmp/yt-cli-thumbs/\$id.jpg ] || curl -sL --max-time 3 \"https://i.ytimg.com/vi/\$id/mqdefault.jpg\" -o /tmp/yt-cli-thumbs/\$id.jpg; } && chafa --size 40x16 /tmp/yt-cli-thumbs/\$id.jpg 2>/dev/null"
+            "--preview-window=right:45%:wrap"
+        )
     fi
 
     while true; do
@@ -558,7 +585,8 @@ search_and_play() {
             --height=70% \
             --reverse \
             --border \
-            --info=inline) || true
+            --info=inline \
+            ${fzf_extra_args[@]+"${fzf_extra_args[@]}"}) || true
 
         if [ -z "$raw_selection" ]; then
             echo -e "${C_GRAY}Saliendo de la lista actual de resultados...${C_RESET}"

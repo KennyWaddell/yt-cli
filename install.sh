@@ -35,7 +35,31 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     echo -e "  Arch Linux:           ${C_BOLD}sudo pacman -S ${MISSING_DEPS[*]}${C_RESET}"
     echo -e "  Fedora:               ${C_BOLD}sudo dnf install ${MISSING_DEPS[*]}${C_RESET}\n"
 else
-    echo -e "${C_GREEN}✔ Todas las dependencias (yt-dlp, fzf, mpv, ffmpeg) están instaladas.${C_RESET}\n"
+    echo -e "${C_GREEN}✔ Todas las dependencias base (yt-dlp, fzf, mpv, ffmpeg) están instaladas.${C_RESET}\n"
+fi
+
+# Dependencia opcional para previsualización de miniaturas (chafa)
+if command -v chafa >/dev/null 2>&1; then
+    echo -e "${C_GREEN}✔ chafa detectado (previsualización de miniaturas habilitada).${C_RESET}\n"
+else
+    echo -e "${C_GRAY}ℹ chafa no está instalado (opcional: necesario solo para previsualizar miniaturas en terminal con FZF).${C_RESET}"
+    if [ -t 0 ]; then
+        echo -ne "${C_YELLOW}¿Deseas instalar 'chafa' ahora para habilitar las miniaturas? [s/N]: ${C_RESET}"
+        read -r install_chafa || install_chafa="n"
+        if [[ "$install_chafa" =~ ^[sSyY]$ ]]; then
+            echo -e "${C_CYAN}Instalando chafa con tu gestor de paquetes...${C_RESET}"
+            if command -v apt-get >/dev/null 2>&1; then
+                sudo apt-get update && sudo apt-get install -y chafa || true
+            elif command -v pacman >/dev/null 2>&1; then
+                sudo pacman -S --noconfirm chafa || true
+            elif command -v dnf >/dev/null 2>&1; then
+                sudo dnf install -y chafa || true
+            elif command -v zypper >/dev/null 2>&1; then
+                sudo zypper install -y chafa || true
+            fi
+        fi
+    fi
+    echo ""
 fi
 
 # 2. Instalación del ejecutable
@@ -47,7 +71,7 @@ chmod +x "${INSTALL_BIN_DIR}/yt-cli"
 echo -e "${C_GREEN}✔ Ejecutable instalado correctamente.${C_RESET}\n"
 
 # 3. Instalación de iconos y acceso directo
-echo -e "${C_YELLOW}[3/4] Instalando iconos y accesos directos...${C_RESET}"
+echo -e "${C_YELLOW}[3/4] Instalando iconos y menús del sistema...${C_RESET}"
 ICON_DIR="${HOME}/.local/share/icons/hicolor/48x48/apps"
 mkdir -p "$ICON_DIR"
 cp "${PROJECT_DIR}/assets/yt-cli.png" "${ICON_DIR}/yt-cli.png"
@@ -56,34 +80,39 @@ APP_DIR="${HOME}/.local/share/applications"
 mkdir -p "$APP_DIR"
 cp "${PROJECT_DIR}/yt-cli.desktop" "${APP_DIR}/yt-cli.desktop"
 chmod +x "${APP_DIR}/yt-cli.desktop"
+echo -e "${C_GREEN}✔ Acceso en menú de aplicaciones (${APP_DIR}/yt-cli.desktop).${C_RESET}"
 
-# Copiar al Escritorio si la carpeta existe
-if [ -d "${HOME}/Desktop" ]; then
-    cp "${PROJECT_DIR}/yt-cli.desktop" "${HOME}/Desktop/yt-cli.desktop"
-    chmod +x "${HOME}/Desktop/yt-cli.desktop"
-elif [ -d "${HOME}/Escritorio" ]; then
-    cp "${PROJECT_DIR}/yt-cli.desktop" "${HOME}/Escritorio/yt-cli.desktop"
-    chmod +x "${HOME}/Escritorio/yt-cli.desktop"
+# Preguntar respetuosamente antes de crear icono en ~/Desktop o ~/Escritorio
+CREATE_DESKTOP="n"
+if [[ " $* " == *" --desktop "* ]]; then
+    CREATE_DESKTOP="s"
+elif [ -t 0 ]; then
+    echo -ne "${C_YELLOW}¿Deseas crear también un acceso directo en tu Escritorio? [s/N]: ${C_RESET}"
+    read -r ans || ans="n"
+    [[ "$ans" =~ ^[sSyY]$ ]] && CREATE_DESKTOP="s"
 fi
-echo -e "${C_GREEN}✔ Acceso directo e icono instalados.${C_RESET}\n"
 
-# 4. Configuración optimizada de yt-dlp
-echo -e "${C_YELLOW}[4/4] Verificando configuración de yt-dlp...${C_RESET}"
-YTDLP_CONF_DIR="${HOME}/.config/yt-dlp"
-YTDLP_CONF_FILE="${YTDLP_CONF_DIR}/config"
-mkdir -p "$YTDLP_CONF_DIR"
-
-if [ ! -f "$YTDLP_CONF_FILE" ]; then
-    cat << 'EOF' > "$YTDLP_CONF_FILE"
-# yt-dlp configuration for antiX / Low-resource Linux
-# Use android_creator client to get all resolutions (360p, 480p, 720p, 1080p) in H.264
---extractor-args "youtube:player_client=android_creator;lang=es"
---no-warnings
-EOF
-    echo -e "${C_GREEN}✔ Archivo de configuración generado en ~/.config/yt-dlp/config.${C_RESET}\n"
+if [ "$CREATE_DESKTOP" = "s" ]; then
+    DESKTOP_PATH=""
+    if [ -d "${HOME}/Desktop" ]; then
+        DESKTOP_PATH="${HOME}/Desktop"
+    elif [ -d "${HOME}/Escritorio" ]; then
+        DESKTOP_PATH="${HOME}/Escritorio"
+    fi
+    if [ -n "$DESKTOP_PATH" ]; then
+        cp "${PROJECT_DIR}/yt-cli.desktop" "${DESKTOP_PATH}/yt-cli.desktop"
+        chmod +x "${DESKTOP_PATH}/yt-cli.desktop"
+        echo -e "${C_GREEN}✔ Acceso directo creado en ${DESKTOP_PATH}/yt-cli.desktop.${C_RESET}\n"
+    fi
 else
-    echo -e "${C_GREEN}✔ Ya existe configuración previa en ~/.config/yt-dlp/config (no modificada).${C_RESET}\n"
+    echo -e "${C_GRAY}ℹ Escritorio no modificado (manteniendo tu entorno limpio).${C_RESET}\n"
 fi
+
+# 4. Configuración aislada de YT-CLI (Sin contaminar dotfiles globales)
+echo -e "${C_YELLOW}[4/4] Verificando entorno aislado en ~/.config/yt-cli...${C_RESET}"
+YT_CLI_CONF_DIR="${HOME}/.config/yt-cli"
+mkdir -p "$YT_CLI_CONF_DIR"
+echo -e "${C_GREEN}✔ Directorio de configuración aislado listo (tus dotfiles de ~/.config/yt-dlp no han sido tocados).${C_RESET}\n"
 
 # 5. Comprobación del PATH
 if [[ ":$PATH:" != *":${INSTALL_BIN_DIR}:"* ]]; then

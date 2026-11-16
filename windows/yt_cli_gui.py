@@ -725,14 +725,26 @@ class YtCliGUI:
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
+
+        search_target = f"ytsearch{limit}:{query}"
+        extra_args = []
+        if query.startswith("@"):
+            parts = query.split(None, 1)
+            ch = parts[0][1:]
+            if len(parts) > 1:
+                search_target = f"https://www.youtube.com/@{ch}/search?query={parts[1]}"
+                extra_args = ["--playlist-end", str(limit)]
+            else:
+                search_target = f"https://www.youtube.com/@{ch}/videos"
+                extra_args = ["--playlist-end", str(limit)]
+
         cmd = [
             ytdlp_cmd,
             "--encoding", "utf-8",
             "--flat-playlist",
-            "--extractor-args", "youtube:player_client=android_creator;lang=es",
+            "--extractor-args", "youtube:lang=es",
             "--print", "%(title)s\t%(uploader)s\t%(duration_string)s\t%(id)s",
-            f"ytsearch{limit}:{query}"
-        ]
+        ] + extra_args + [search_target]
         try:
             proc = subprocess.Popen(
                 cmd,
