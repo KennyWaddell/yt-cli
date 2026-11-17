@@ -20,7 +20,7 @@ echo -e "${C_BOLD} Instalador de YT-CLI (Cliente Multimedia Ligero)${C_RESET}"
 echo -e "${C_CYAN}====================================================${C_RESET}\n"
 
 # 1. Comprobación de dependencias
-echo -e "${C_YELLOW}[1/4] Verificando dependencias del sistema...${C_RESET}"
+echo -e "${C_YELLOW}[1/5] Verificando dependencias del sistema...${C_RESET}"
 MISSING_DEPS=()
 for dep in yt-dlp fzf mpv ffmpeg; do
     if ! command -v "$dep" >/dev/null 2>&1; then
@@ -39,15 +39,22 @@ else
 fi
 
 # 2. Instalación del ejecutable
-echo -e "${C_YELLOW}[2/4] Instalando ejecutable en ~/.local/bin/yt-cli...${C_RESET}"
+echo -e "${C_YELLOW}[2/5] Instalando ejecutable en ~/.local/bin/yt-cli...${C_RESET}"
 INSTALL_BIN_DIR="${HOME}/.local/bin"
 mkdir -p "$INSTALL_BIN_DIR"
 cp "${PROJECT_DIR}/bin/yt-cli" "${INSTALL_BIN_DIR}/yt-cli"
 chmod +x "${INSTALL_BIN_DIR}/yt-cli"
 echo -e "${C_GREEN}✔ Ejecutable instalado correctamente.${C_RESET}\n"
 
-# 3. Instalación de iconos y acceso directo
-echo -e "${C_YELLOW}[3/4] Instalando iconos y menús del sistema...${C_RESET}"
+# 3. Instalación de paquetes de idioma (i18n)
+echo -e "${C_YELLOW}[3/5] Instalando paquetes de idiomas en ~/.local/share/yt-cli/lang...${C_RESET}"
+LANG_INSTALL_DIR="${HOME}/.local/share/yt-cli/lang"
+mkdir -p "$LANG_INSTALL_DIR"
+cp "${PROJECT_DIR}/lang/"*.sh "$LANG_INSTALL_DIR/"
+echo -e "${C_GREEN}✔ Idiomas instalados (Español / English).${C_RESET}\n"
+
+# 4. Instalación de iconos y acceso directo
+echo -e "${C_YELLOW}[4/5] Instalando iconos y menús del sistema...${C_RESET}"
 ICON_DIR="${HOME}/.local/share/icons/hicolor/48x48/apps"
 mkdir -p "$ICON_DIR"
 cp "${PROJECT_DIR}/assets/yt-cli.png" "${ICON_DIR}/yt-cli.png"
@@ -84,8 +91,8 @@ else
     echo -e "${C_GRAY}ℹ Escritorio no modificado (manteniendo tu entorno limpio).${C_RESET}\n"
 fi
 
-# 4. Configuración aislada de YT-CLI (Sin contaminar dotfiles globales)
-echo -e "${C_YELLOW}[4/4] Verificando entorno aislado en ~/.config/yt-cli...${C_RESET}"
+# 5. Configuración aislada de YT-CLI (Sin contaminar dotfiles globales)
+echo -e "${C_YELLOW}[5/5] Verificando entorno aislado en ~/.config/yt-cli...${C_RESET}"
 YT_CLI_CONF_DIR="${HOME}/.config/yt-cli"
 mkdir -p "$YT_CLI_CONF_DIR"
 echo -e "${C_GREEN}✔ Directorio de configuración aislado listo (tus dotfiles de ~/.config/yt-dlp no han sido tocados).${C_RESET}\n"

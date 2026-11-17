@@ -35,8 +35,35 @@ Todos los motores multimedia ya vienen incluidos dentro de la carpeta "bin/":
 CARACTERISTICAS
 ---------------
 * Streaming fluido en 360p, 480p, 720p, 1080p y 60 FPS (DirectX 11 / DXVA2).
-* Descargas MP4 y MP3 (320k, 192k, 128k) con union automatica.
-* Historial local con reanudacion automatica donde lo dejaste.
-* Soporte para cookies de sesion de Brave, Chrome, Firefox y Edge.
+* Descargas MP4 y MP3 (320k, 192k, 128k) con unión automática.
+* Historial local con reanudación automática donde lo dejaste.
+* Soporte para cookies de sesión de Brave, Chrome, Firefox y Edge.
 * Modos visuales Tema Oscuro y Tema Claro.
 * Consumo ultrabajo de memoria RAM (~22 MB).
+
+PREGUNTAS FRECUENTES (FAQ)
+--------------------------
+P: ¿Por qué Windows SmartScreen o mi antivirus muestra una alerta al abrirlo?
+R: Es un falso positivo muy común en ejecutables empaquetados con PyInstaller
+   que no cuentan con un certificado de firma digital de pago (cuestan cientos
+   de dólares al año). El proyecto es 100% de código abierto bajo licencia GPLv3
+   y puedes auditar cada línea de código en GitHub. Haz clic en "Más información"
+   y luego "Ejecutar de todas formas".
+
+P: ¿Qué hago si YouTube cambia su sistema y los videos dejan de cargar?
+R: Solo debes actualizar el motor yt-dlp.exe:
+   1. Descarga el ejecutable más reciente desde:
+      https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
+   2. Reemplaza el archivo "yt-dlp.exe" dentro de la subcarpeta "bin/".
+   ¡Listo! No necesitas volver a compilar nada.
+
+P: ¿Cómo puedo ver videos con restricción de edad o que piden inicio de sesión?
+R: En el desplegable "Cookies", selecciona el navegador donde tengas tu sesión
+   abierta (Brave, Firefox, Chrome o Edge). YT-CLI leerá temporalmente las cookies
+   necesarias para desbloquear el video sin guardar tus contraseñas.
+
+P: ¿Cómo descargo solo las canciones en formato MP3 con carátula?
+R: Busca la canción, selecciónala en la tabla y pulsa "🎵 Descargar MP3".
+   Elige la calidad (320 kbps para máxima fidelidad) y el programa incrustará
+   automáticamente la carátula oficial y metadatos en el archivo de audio.
+

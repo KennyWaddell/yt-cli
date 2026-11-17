@@ -98,6 +98,27 @@ def record_history_item(title, channel, duration, video_id):
     data["history"] = history[:max_items]
     save_history_data(data)
 
+def get_settings_file():
+    return os.path.join(get_config_dir(), "settings.json")
+
+def load_settings():
+    path = get_settings_file()
+    if os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"lang": "es", "theme": "dark"}
+
+def save_settings(settings):
+    path = get_settings_file()
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+    except Exception:
+        pass
+
 def get_binary_path(name):
     if IS_WINDOWS:
         exe_name = f"{name}.exe"
@@ -172,6 +193,69 @@ THEMES = {
     }
 }
 
+GUI_STRINGS = {
+    "es": {
+        "title": "YT-CLI",
+        "subtitle": "Cliente Multimedia Ultraligero",
+        "theme_light": "☀️ Modo Claro",
+        "theme_dark": "🌙 Modo Oscuro",
+        "credits": "ℹ️ Créditos",
+        "lang_btn": "🌐 English",
+        "paste": "📋 Pegar",
+        "clear": "🧹 Limpiar",
+        "search": "🔍 Buscar",
+        "history": "📜 Historial",
+        "history_back": "🔍 Volver a Búsqueda",
+        "results_label": "Resultados:",
+        "quality_label": "Calidad:",
+        "fps_label": "FPS:",
+        "cookies_label": "Cookies:",
+        "dest_label": "Destino:",
+        "change_folder": "📁 Cambiar",
+        "table_hint": "Resultados (haz clic en las columnas para ordenar • doble clic para ver)",
+        "col_title": "Título ↕",
+        "col_channel": "Canal ↕",
+        "col_duration": "Duración ↕",
+        "col_id": "ID / Enlace",
+        "play_video": "▶ Ver Vídeo",
+        "play_audio": "🎧 Escuchar Audio",
+        "download_video": "🎬 Descargar MP4",
+        "download_audio": "🎵 Descargar MP3",
+        "stop": "⏹ Detener",
+        "ready": "Listo."
+    },
+    "en": {
+        "title": "YT-CLI",
+        "subtitle": "Ultralight Multimedia Client",
+        "theme_light": "☀️ Light Mode",
+        "theme_dark": "🌙 Dark Mode",
+        "credits": "ℹ️ Credits",
+        "lang_btn": "🌐 Español",
+        "paste": "📋 Paste",
+        "clear": "🧹 Clear",
+        "search": "🔍 Search",
+        "history": "📜 History",
+        "history_back": "🔍 Back to Search",
+        "results_label": "Results:",
+        "quality_label": "Quality:",
+        "fps_label": "FPS:",
+        "cookies_label": "Cookies:",
+        "dest_label": "Destination:",
+        "change_folder": "📁 Browse",
+        "table_hint": "Results (click column headers to sort • double click to watch)",
+        "col_title": "Title ↕",
+        "col_channel": "Channel ↕",
+        "col_duration": "Duration ↕",
+        "col_id": "ID / Link",
+        "play_video": "▶ Watch Video",
+        "play_audio": "🎧 Listen Audio",
+        "download_video": "🎬 Download MP4",
+        "download_audio": "🎵 Download MP3",
+        "stop": "⏹ Stop",
+        "ready": "Ready."
+    }
+}
+
 def parse_duration_to_seconds(dur_str):
     """Convierte '03:45' o '1:20:00' a segundos para ordenamiento numérico."""
     if not dur_str or dur_str in ("--:--", "NA"):
@@ -196,7 +280,10 @@ class YtCliGUI:
         self.root.geometry("880x620")
         self.root.minsize(760, 520)
 
-        self.current_theme = "dark"
+        settings = load_settings()
+        self.current_theme = settings.get("theme", "dark")
+        self.current_lang = settings.get("lang", "es")
+
         self.msg_queue = queue.Queue()
         self.active_process = None
         self.mpv_process = None
@@ -215,6 +302,7 @@ class YtCliGUI:
 
         self.setup_ui()
         self.apply_theme(self.current_theme)
+        self.update_ui_language()
         
         # Asignar icono oficial tanto en script Python como en binario compilado (.exe)
         app_dir = os.path.dirname(sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
@@ -291,6 +379,19 @@ class YtCliGUI:
             cursor="hand2"
         )
         self.btn_about.pack(side=tk.RIGHT, padx=(0, 6))
+
+        self.btn_lang_toggle = tk.Button(
+            self.header_frame,
+            text="🌐 English",
+            font=("sans-serif", 8, "bold"),
+            command=self.toggle_language,
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=4,
+            cursor="hand2"
+        )
+        self.btn_lang_toggle.pack(side=tk.RIGHT, padx=(0, 6))
 
         # --- TARJETA DE BÚSQUEDA ---
         self.card_search = tk.Frame(self.main_container, bd=1, relief="solid")
@@ -553,6 +654,10 @@ class YtCliGUI:
             bg=pal["btn_secondary_bg"],
             fg=pal["btn_secondary_fg"]
         )
+        self.btn_lang_toggle.configure(
+            bg=pal["btn_secondary_bg"],
+            fg=pal["btn_secondary_fg"]
+        )
 
         # Tarjetas de búsqueda y tabla
         for card in [self.card_search, self.card_table]:
@@ -624,6 +729,43 @@ class YtCliGUI:
         new_theme = "light" if self.current_theme == "dark" else "dark"
         self.apply_theme(new_theme)
         self._refresh_row_tags()
+        settings = load_settings()
+        settings["theme"] = new_theme
+        save_settings(settings)
+
+    def update_ui_language(self):
+        s = GUI_STRINGS.get(self.current_lang, GUI_STRINGS["es"])
+        self.subtitle_lbl.config(text=s["subtitle"])
+        self.btn_lang_toggle.config(text=s["lang_btn"])
+        self.btn_theme_toggle.config(text=s["theme_light"] if self.current_theme == "dark" else s["theme_dark"])
+        self.btn_about.config(text=s["credits"])
+        self.btn_paste.config(text=s["paste"])
+        self.btn_clear.config(text=s["clear"])
+        self.btn_search.config(text=s["search"])
+        self.btn_history.config(text=s["history_back"] if self.is_viewing_history else s["history"])
+        self.lbl_limit.config(text=s["results_label"])
+        self.lbl_qual.config(text=s["quality_label"])
+        self.lbl_fps.config(text=s["fps_label"])
+        self.lbl_cookies.config(text=s["cookies_label"])
+        self.lbl_dest_tag.config(text=s["dest_label"])
+        self.btn_browse.config(text=s["change_folder"])
+        self.lbl_table_info.config(text=s["table_hint"])
+        self.tree.heading("title", text=s["col_title"])
+        self.tree.heading("channel", text=s["col_channel"])
+        self.tree.heading("duration", text=s["col_duration"])
+        self.tree.heading("id", text=s["col_id"])
+        self.btn_play_vid.config(text=s["play_video"])
+        self.btn_play_aud.config(text=s["play_audio"])
+        self.btn_dl_video.config(text=s["download_video"])
+        self.btn_dl_audio.config(text=s["download_audio"])
+        self.btn_cancel.config(text=s["stop"])
+
+    def toggle_language(self):
+        self.current_lang = "en" if self.current_lang == "es" else "es"
+        self.update_ui_language()
+        settings = load_settings()
+        settings["lang"] = self.current_lang
+        save_settings(settings)
 
     def _refresh_row_tags(self):
         for idx, item in enumerate(self.tree.get_children()):
@@ -863,7 +1005,7 @@ class YtCliGUI:
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl_title = tk.Label(dialog, text="YT-CLI v1.0", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl_title = tk.Label(dialog, text="YT-CLI v1.3", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl_title.pack(pady=(14, 2))
 
         lbl_desc = tk.Label(

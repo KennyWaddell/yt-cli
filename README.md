@@ -1,5 +1,9 @@
 # 🎬 YT-CLI
 
+<p align="center">
+  <b><a href="README.en.md">English</a></b> • <b><a href="README.md">Español</a></b>
+</p>
+
 > **Cliente y Gestor Multimedia Ultraligero para Terminal en Linux y GUI Portable en Windows**  
 > Diseñado específicamente para equipos de recursos limitados (Intel Celeron, Atom, ThinkPads clásicas y PCs con 2 GB de RAM). Compatible con Linux y Windows 7, 8.1, 10 y 11.
 
@@ -196,6 +200,73 @@ YT-CLI incluye una versión oficial con interfaz gráfica moderna y ligera para 
 
 ---
 
+## ❓ Preguntas Frecuentes (FAQ)
+
+<details>
+<summary><b>1. ¿Por qué no usar simplemente el navegador web con uBlock Origin?</b></summary>
+<br>
+Los bloqueadores de publicidad son excelentes, pero no eliminan el motor Chromium/Gecko: el navegador sigue teniendo que analizar y ejecutar megabytes de código JavaScript pesado, renderizar el árbol DOM, procesar hojas de estilo complejas y gestionar decenas de hilos de renderizado. En una máquina modesta (2 a 4 GB de RAM, 2 núcleos), esto se traduce en consumos superiores a 1 GB de memoria RAM y ventiladores al máximo. <b>YT-CLI + MPV</b> reproduce el flujo multimedia puro por hardware sin capas web intermedias, consumiendo apenas ~75 MB de RAM.
+</details>
+
+<details>
+<summary><b>2. ¿Por qué YT-CLI no incluye previsualización de miniaturas en la terminal de Linux?</b></summary>
+<br>
+Siguiendo la filosofía UNIX (<i>"Haz una sola cosa y hazla bien"</i>) y la estabilidad técnica: los emuladores de terminal estándar (como <code>xfce4-terminal</code>, GNOME Terminal o Alacritty sin parches) manejan gráficos mediante caracteres de bloque (Unicode) o protocolos como Kitty/Sixel de forma dispar, lo que provoca desalineación vertical, parpadeos, deformación de proporciones de aspecto y líneas fantasma al filtrar dinámicamente con FZF. Para una experiencia visual con tarjetas y miniaturas, YT-CLI ofrece su interfaz gráfica nativa en Windows; mientras que en Linux se prioriza una consola de texto limpia, instantánea, libre de fallos y 100% usable incluso en servidores remotos o TTY puras.
+</details>
+
+<details>
+<summary><b>3. ¿Funciona en equipos antiguos (Intel Celeron, Atom, ThinkPads clásicas con 2 GB RAM)?</b></summary>
+<br>
+Sí, absolutamente. YT-CLI fue diseñado específicamente pensando en computadoras de bajos recursos y portátiles antiguas. Al forzar el perfil H.264 (AVC) a un máximo de 30 fps con <code>--hwdec=auto-safe</code>, evita que la CPU intente decodificar códecs modernos altamente exigentes como VP9 o AV1 por software. Además, dispone de modos de resolución ligera a 480p y 360p, y un modo podcast (solo audio) que apenas consume ~25 MB de memoria RAM.
+</details>
+
+<details>
+<summary><b>4. ¿Cómo cambio el idioma de la aplicación (Español / Inglés)?</b></summary>
+<br>
+YT-CLI detecta automáticamente el idioma de tu sistema operativo (variable <code>$LANG</code>), pero puedes cambiarlo manualmente en cualquier momento:
+<ul>
+  <li>Desde la consola interactiva: escribe el comando <code>:lang</code> (o directamente <code>:lang en</code> / <code>:lang es</code>).</li>
+  <li>Desde la terminal al iniciar: ejecuta <code>yt-cli --lang en</code> o <code>yt-cli --lang es</code>.</li>
+</ul>
+Tu preferencia quedará guardada de forma persistente en <code>~/.config/yt-cli/config</code>.
+</details>
+
+<details>
+<summary><b>5. ¿Cómo supero restricciones de edad o avisos de bot en YouTube?</b></summary>
+<br>
+Puedes pasar las cookies de sesión de tu navegador habitual para que YouTube reconozca tu sesión iniciada sin guardar contraseñas ni comprometer tu seguridad:
+<ul>
+  <li>En la consola interactiva: escribe el comando <code>:c</code> e introduce tu navegador (ej: <code>brave</code> o <code>firefox</code>).</li>
+  <li>Al arrancar desde terminal: ejecuta <code>yt-cli -c brave "término de búsqueda"</code> o <code>yt-cli -c /ruta/a/cookies.txt</code>.</li>
+</ul>
+</details>
+
+<details>
+<summary><b>6. ¿Qué hago si YouTube cambia su API y los videos dejan de cargar?</b></summary>
+<br>
+YouTube actualiza frecuentemente sus firmas internas. Cuando esto ocurra, no necesitas reinstalar YT-CLI; únicamente debes actualizar el motor <code>yt-dlp</code> a su versión más reciente:
+<pre><code># Si instalaste con pipx:
+pipx upgrade yt-dlp
+
+# Si descargaste el binario oficial independiente:
+sudo yt-dlp -U
+</code></pre>
+</details>
+
+<details>
+<summary><b>7. ¿Cómo puedo contribuir traduciendo YT-CLI a mi idioma?</b></summary>
+<br>
+¡Las contribuciones comunitarias son bienvenidas! El sistema de internacionalización de YT-CLI es modular y plano:
+<ol>
+  <li>Ve a la carpeta <code>lang/</code> del repositorio.</li>
+  <li>Haz una copia del archivo base <code>lang/en.sh</code> (por ejemplo, <code>lang/pt.sh</code> para portugués, <code>lang/fr.sh</code> para francés, etc.).</li>
+  <li>Traduce las cadenas de texto entre comillas respetando los nombres de variables.</li>
+  <li>Abre un <b>Pull Request</b> en GitHub para incluirlo oficialmente en la próxima versión.</li>
+</ol>
+</details>
+
+---
+
 ## 🗺️ Roadmap
 
 - [x] Soporte para reanudación de descargas interrumpidas (`-c` / `--continue`).
@@ -210,7 +281,7 @@ YT-CLI incluye una versión oficial con interfaz gráfica moderna y ligera para 
 - [x] Aceleración agnóstica por hardware (`--hwdec=auto-safe`: Intel VA-API, AMD Mesa, Nvidia NVDEC) y desbloqueo de 720p/1080p (v1.2).
 - [x] Soporte para portapapeles en Wayland (`wl-paste`) y X11 (`xclip` / `xsel`) (v1.2).
 - [x] Filtrado y búsqueda directa en canales específicos (`@canal` o `@canal término`) (v1.2).
-- [ ] Internacionalización (i18n): Soporte para español e inglés y sistema de localización de idiomas (previsto para v1.3).
+- [x] Internacionalización (i18n): Sistema bilingüe modular en español e inglés (`lang/es.sh`, `lang/en.sh`, `--lang`, `:lang`) (v1.3).
 - [ ] Actualizador integrado de `yt-dlp` desde comando CLI y botón en GUI (previsto para v1.3).
 - [ ] Presets y plantillas de configuración personalizadas (previsto para v1.3).
 - [ ] Soporte opcional para SponsorBlock (previsto para v1.3).

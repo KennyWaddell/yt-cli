@@ -57,20 +57,90 @@ set_cookies() {
     if [ -f "$source" ]; then
         COOKIE_YTDL_ARGS=("--cookies" "$source")
         COOKIE_MPV_ARGS=("--ytdl-raw-options-append=cookies=${source}")
-        echo -e "${C_GREEN}✔ Usando archivo de cookies:${C_RESET} ${source}"
+        echo -e "${C_GREEN}${MSG_COOKIE_SUCCESS:-✔ Cookies configuradas para:}${C_RESET} ${source}"
     else
         local browser_lower
         browser_lower=$(echo "$source" | tr '[:upper:]' '[:lower:]')
         COOKIE_YTDL_ARGS=("--cookies-from-browser" "$browser_lower")
         COOKIE_MPV_ARGS=("--ytdl-raw-options-append=cookies-from-browser=${browser_lower}")
-        echo -e "${C_GREEN}✔ Usando cookies del navegador:${C_RESET} ${browser_lower}"
+        echo -e "${C_GREEN}${MSG_COOKIE_SUCCESS:-✔ Cookies configuradas para:}${C_RESET} ${browser_lower}"
     fi
 }
 
-# Configuración del Historial local
+# Configuración del Historial y Entorno local
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/yt-cli"
 HISTORY_FILE="${CONFIG_DIR}/history.json"
+CONFIG_FILE="${CONFIG_DIR}/config"
 mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+
+# Resolución del directorio de idiomas (i18n)
+LANG_DIR=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -d "${SCRIPT_DIR}/lang" ]; then
+    LANG_DIR="${SCRIPT_DIR}/lang"
+elif [ -d "${HOME}/.local/share/yt-cli/lang" ]; then
+    LANG_DIR="${HOME}/.local/share/yt-cli/lang"
+elif [ -d "/usr/share/yt-cli/lang" ]; then
+    LANG_DIR="/usr/share/yt-cli/lang"
+fi
+
+detect_default_lang() {
+    local sys_l="${LANG:-${LC_ALL:-en}}"
+    if [[ "$sys_l" =~ ^es ]]; then
+        echo "es"
+    else
+        echo "en"
+    fi
+}
+
+load_language() {
+    local target_lang="${1:-es}"
+    # 1. Fallback base: English
+    if [ -n "$LANG_DIR" ] && [ -f "${LANG_DIR}/en.sh" ]; then
+        # shellcheck source=/dev/null
+        source "${LANG_DIR}/en.sh"
+    fi
+    # 2. Carga del idioma solicitado
+    if [ -n "$LANG_DIR" ] && [ -f "${LANG_DIR}/${target_lang}.sh" ]; then
+        # shellcheck source=/dev/null
+        source "${LANG_DIR}/${target_lang}.sh"
+    fi
+}
+
+set_language() {
+    local new_lang="${1:-}"
+    if [[ "$new_lang" != "es" && "$new_lang" != "en" ]]; then
+        echo -e "${C_CYAN}${MSG_LANG_CHOOSE:-Select language / Selecciona idioma:}${C_RESET}"
+        echo -e "  [1] Español"
+        echo -e "  [2] English"
+        echo -ne "Opción / Choice [1-2]: "
+        local c=""
+        if [ -t 0 ]; then read -r c; else read -r c </dev/tty; fi
+        case "$c" in
+            2|[eE]*) new_lang="en" ;;
+            *) new_lang="es" ;;
+        esac
+    fi
+
+    load_language "$new_lang"
+    CURRENT_LANG="$new_lang"
+
+    # Persistir en ~/.config/yt-cli/config
+    mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+    if [ -f "$CONFIG_FILE" ]; then
+        sed -i '/^CLI_LANG=/d' "$CONFIG_FILE" 2>/dev/null || true
+    fi
+    echo "CLI_LANG=\"${new_lang}\"" >> "$CONFIG_FILE"
+    echo -e "${C_GREEN}${MSG_LANG_SAVED:-✔ Idioma configurado / Language set to:} ${C_BOLD}${LANG_NAME:-$new_lang}${C_RESET}"
+}
+
+# Inicializar idioma por defecto o guardado
+CURRENT_LANG="$(detect_default_lang)"
+if [ -f "$CONFIG_FILE" ]; then
+    saved_lang=$(grep -E '^CLI_LANG=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
+    [ -n "$saved_lang" ] && CURRENT_LANG="$saved_lang"
+fi
+load_language "$CURRENT_LANG"
 
 # Guardar elemento en el historial
 record_history() {
@@ -107,7 +177,7 @@ EOF
 # Ver y seleccionar del historial
 show_history_menu() {
     if [ ! -f "$HISTORY_FILE" ]; then
-        echo -e "${C_YELLOW}El historial está vacío.${C_RESET}"
+        echo -e "${C_YELLOW}${MSG_HIST_EMPTY}${C_RESET}"
         sleep 1.5
         return
     fi
@@ -128,19 +198,19 @@ EOF
 )
 
     if [ -z "$hist_list" ]; then
-        echo -e "${C_YELLOW}El historial está vacío.${C_RESET}"
+        echo -e "${C_YELLOW}${MSG_HIST_EMPTY}${C_RESET}"
         sleep 1.5
         return
     fi
 
-    hist_list="${hist_list}"$'\n'"🗑️  Borrar todo el historial	__CLEAR_HISTORY__"
+    hist_list="${hist_list}"$'\n'"${MSG_HIST_CLEAR_OPTION}	__CLEAR_HISTORY__"
 
     local selection
     selection=$(echo "$hist_list" | "$BIN_FZF" \
         --delimiter='\t' \
         --with-nth=1 \
-        --prompt="📜 Historial (máx. 50) > " \
-        --header="[Enter] Ver vídeo/playlist o Borrar | [ESC] Volver" \
+        --prompt="${MSG_HIST_PROMPT}" \
+        --header="${MSG_HIST_HEADER}" \
         --height=60% \
         --reverse \
         --border) || true
@@ -181,7 +251,7 @@ if os.path.isfile(path):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump({'enabled': True, 'max_items': 50, 'history': []}, f, indent=2)
 EOF
-    echo -e "${C_GREEN}✔ Historial de YT-CLI eliminado por completo.${C_RESET}"
+    echo -e "${C_GREEN}${MSG_HIST_CLEARED}${C_RESET}"
 }
 
 # Signal trap for clean exit
@@ -246,8 +316,8 @@ choose_destination_folder() {
     local default_folder="$CURRENT_DIR_VIDEOS"
     [ "$type" = "audio" ] && default_folder="$CURRENT_DIR_MUSIC"
 
-    echo -e "${C_CYAN}Carpeta de destino para descarga:${C_RESET}" >&2
-    echo -e "  ${C_BOLD}[1]${C_RESET} Predeterminada: ${C_GREEN}${default_folder}${C_RESET} ${C_YELLOW}★${C_RESET}" >&2
+    echo -e "${C_CYAN}${MSG_DL_DEST_TITLE}${C_RESET}" >&2
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_DEST_DEFAULT} ${C_GREEN}${default_folder}${C_RESET} ${C_YELLOW}★${C_RESET}" >&2
 
     # Detectar si hay pendrives o discos externos montados en /media/$USER
     local media_dirs=()
@@ -260,14 +330,14 @@ choose_destination_folder() {
     local opt_index=2
     if [ ${#media_dirs[@]} -gt 0 ]; then
         for mdir in "${media_dirs[@]}"; do
-            echo -e "  ${C_BOLD}[${opt_index}]${C_RESET} Pendrive/Disco externo: ${C_CYAN}${mdir}${C_RESET}" >&2
+            echo -e "  ${C_BOLD}[${opt_index}]${C_RESET} ${MSG_DL_DEST_DRIVE} ${C_CYAN}${mdir}${C_RESET}" >&2
             opt_index=$((opt_index + 1))
         done
     fi
 
-    echo -e "  ${C_BOLD}[c]${C_RESET} Escribir otra ruta personalizada..." >&2
+    echo -e "  ${C_BOLD}[c]${C_RESET} ${MSG_DL_DEST_CUSTOM}" >&2
     echo "" >&2
-    echo -ne "${C_YELLOW}Elige opción (Enter para predeterminada): ${C_RESET}" >&2
+    echo -ne "${C_YELLOW}${MSG_DL_DEST_PROMPT}${C_RESET}" >&2
 
     local choice=""
     if [ -t 0 ]; then read -r choice || choice="1"; else read -r choice </dev/tty || choice="1"; fi
@@ -280,7 +350,7 @@ choose_destination_folder() {
         local m_idx=$((choice - 2))
         echo "${media_dirs[$m_idx]}"
     elif [[ "$choice" =~ ^[cC]$ ]]; then
-        echo -ne "${C_CYAN}Introduce la ruta de la carpeta: ${C_RESET}" >&2
+        echo -ne "${C_CYAN}${MSG_DL_DEST_INPUT}${C_RESET}" >&2
         local custom_path=""
         if [ -t 0 ]; then read -r custom_path; else read -r custom_path </dev/tty; fi
         custom_path="${custom_path/#\~/$HOME}"
@@ -296,25 +366,25 @@ SELECTED_ACTION="play_720"
 # 5. Menú interactivo unificado (Reproducir / Descargar / Volver)
 choose_action() {
     local count="${1:-1}"
-    local label_items="este video"
-    [ "$count" -gt 1 ] && label_items="${count} videos en cola"
+    local label_items="${MSG_ACTION_SINGLE}"
+    [ "$count" -gt 1 ] && label_items="${count} ${MSG_ACTION_MULTI}"
 
-    echo -e "${C_CYAN}¿Qué deseas hacer con ${label_items}?${C_RESET}"
-    echo -e "  ${C_BOLD}── REPRODUCIR (STREAMING AL VUELO) ─────────────────${C_RESET}"
-    echo -e "  ${C_BOLD}[1]${C_RESET} Ver en 720p HD a 30fps  ${C_GREEN}(Recomendado GPU Auto-Safe)${C_RESET} ${C_YELLOW}★ Predeterminado${C_RESET}"
-    echo -e "  ${C_BOLD}[2]${C_RESET} Ver en 1080p Full HD     ${C_GRAY}(30fps acelerado H.264)${C_RESET}"
-    echo -e "  ${C_BOLD}[3]${C_RESET} Ver en 480p / 360p       ${C_GRAY}(Ahorro de datos/CPU)${C_RESET}"
-    echo -e "  ${C_BOLD}[4]${C_RESET} Escuchar solo audio      ${C_GRAY}(Modo radio/podcast - ~25MB RAM)${C_RESET}"
+    echo -e "${C_CYAN}${MSG_ACTION_TITLE} ${label_items}?${C_RESET}"
+    echo -e "  ${C_BOLD}${MSG_ACTION_STREAM_HEADER}${C_RESET}"
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_ACTION_1}"
+    echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_ACTION_2}"
+    echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_ACTION_3}"
+    echo -e "  ${C_BOLD}[4]${C_RESET} ${MSG_ACTION_4}"
     echo ""
-    echo -e "  ${C_BOLD}── DESCARGAR Y GUARDAR EN DISCO ────────────────────${C_RESET}"
-    echo -e "  ${C_BOLD}[5]${C_RESET} Descargar Video(s) 720p  ${C_GRAY}(MP4 H.264 en disco/USB)${C_RESET}"
-    echo -e "  ${C_BOLD}[6]${C_RESET} Descargar Video(s) 1080p ${C_GRAY}(MP4 Full HD en disco/USB)${C_RESET}"
-    echo -e "  ${C_BOLD}[7]${C_RESET} Descargar Audio(s) MP3   ${C_GRAY}(Con carátula y metadatos)${C_RESET}"
+    echo -e "  ${C_BOLD}${MSG_ACTION_DOWNLOAD_HEADER}${C_RESET}"
+    echo -e "  ${C_BOLD}[5]${C_RESET} ${MSG_ACTION_5}"
+    echo -e "  ${C_BOLD}[6]${C_RESET} ${MSG_ACTION_6}"
+    echo -e "  ${C_BOLD}[7]${C_RESET} ${MSG_ACTION_7}"
     echo ""
-    echo -e "  ${C_BOLD}── NAVEGACIÓN ──────────────────────────────────────${C_RESET}"
-    echo -e "  ${C_BOLD}[0]${C_RESET} Volver a la lista / Cancelar"
+    echo -e "  ${C_BOLD}${MSG_ACTION_NAV_HEADER}${C_RESET}"
+    echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0}"
     echo ""
-    echo -ne "${C_YELLOW}Elige opción [1-7 | 0 para volver] (Enter para ver en 720p): ${C_RESET}"
+    echo -ne "${C_YELLOW}${MSG_ACTION_PROMPT}${C_RESET}"
 
     local user_opt=""
     if [ -t 0 ]; then
@@ -349,17 +419,17 @@ play_videos() {
         "--msg-level=all=no,statusline=status"
         "--save-position-on-quit"
         "--watch-later-options=start"
-        "--ytdl-raw-options-append=extractor-args=youtube:lang=es"
+        "--ytdl-raw-options-append=extractor-args=youtube:lang=${CURRENT_LANG}"
     )
     if [ ${#COOKIE_MPV_ARGS[@]} -gt 0 ]; then
         MPV_ARGS+=("${COOKIE_MPV_ARGS[@]}")
     fi
 
     if [ "$quality" = "audio" ]; then
-        echo -e "${C_CYAN}▶ Modo Solo Audio (Reproductor compacto interactivo - ~25 MB RAM)...${C_RESET}"
-        echo -e "${C_YELLOW}⏳ Cargando audio/playlist... la ventana de controles abrirá en unos segundos.${C_RESET}"
+        echo -e "${C_CYAN}${MSG_MPV_AUDIO_START}${C_RESET}"
+        echo -e "${C_YELLOW}${MSG_MPV_AUDIO_WAIT}${C_RESET}"
         MPV_ARGS+=(
-            "--title=YT-CLI - Reproductor de Audio"
+            "--title=YT-CLI - Audio Player"
             "--vid=no"
             "--force-window=yes"
             "--geometry=560x220"
@@ -370,19 +440,19 @@ play_videos() {
         local ytdl_fmt=""
         case "$quality" in
             360)
-                echo -e "${C_CYAN}▶ Reproduciendo en 360p (H.264 / 30fps)...${C_RESET}"
+                echo -e "${C_CYAN}${MSG_MPV_PLAY_360}${C_RESET}"
                 ytdl_fmt="bestvideo[vcodec^=avc1][height<=360][fps<=30]+bestaudio/best[vcodec^=avc1][height<=360]/best[height<=360]/best"
                 ;;
             480)
-                echo -e "${C_CYAN}▶ Reproduciendo en 480p (H.264 / 30fps)...${C_RESET}"
+                echo -e "${C_CYAN}${MSG_MPV_PLAY_480}${C_RESET}"
                 ytdl_fmt="bestvideo[vcodec^=avc1][height<=480][fps<=30]+bestaudio/best[vcodec^=avc1][height<=480]/best[height<=480]/best"
                 ;;
             1080)
-                echo -e "${C_CYAN}▶ Reproduciendo en 1080p a 30fps (H.264 / auto-safe, fallback 720p)...${C_RESET}"
+                echo -e "${C_CYAN}${MSG_MPV_PLAY_1080}${C_RESET}"
                 ytdl_fmt="bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio/bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[vcodec^=avc1][height<=1080]/best[vcodec^=avc1][height<=720]/best[height<=720]/best"
                 ;;
             720|*)
-                echo -e "${C_CYAN}▶ Reproduciendo en 720p (H.264 / auto-safe)...${C_RESET}"
+                echo -e "${C_CYAN}${MSG_MPV_PLAY_720}${C_RESET}"
                 ytdl_fmt="bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[vcodec^=avc1][height<=720]/best[height<=720]/best"
                 ;;
         esac
@@ -405,12 +475,12 @@ play_videos() {
     done
 
     if [ "$quality" = "audio" ]; then
-        echo -e "${C_GRAY}[Atajos Audio: 'Espacio' pausa | '←/→' retroceder/avanzar | 'l' bucle | '>/< ' sig./ant. | '9/0' vol | 'q' salir]${C_RESET}\n"
+        echo -e "${C_GRAY}${MSG_MPV_AUDIO_TIPS}${C_RESET}\n"
     elif [ ${#formatted_urls[@]} -gt 1 ]; then
-        echo -e "${C_GREEN}🎶 Cola activa con ${#formatted_urls[@]} elementos.${C_RESET}"
-        echo -e "${C_GRAY}[Atajos MPV: '>' siguiente | '<' anterior | 'q' salir | 'Espacio' pausa | 'f' pantalla completa]${C_RESET}\n"
+        echo -e "${C_GREEN}${MSG_MPV_QUEUE_ACTIVE} ${#formatted_urls[@]} ${MSG_ACTION_MULTI}.${C_RESET}"
+        echo -e "${C_GRAY}${MSG_MPV_QUEUE_TIPS}${C_RESET}\n"
     else
-        echo -e "${C_GRAY}[Atajos MPV: 'q' cerrar y volver a lista | 'Espacio' pausa | '9/0' volumen | 'f' pantalla completa]${C_RESET}\n"
+        echo -e "${C_GRAY}${MSG_MPV_SINGLE_TIPS}${C_RESET}\n"
     fi
 
     "$BIN_MPV" "${MPV_ARGS[@]}" "${formatted_urls[@]}" || true
@@ -427,8 +497,8 @@ download_videos() {
     dest_dir=$(choose_destination_folder "video")
     mkdir -p "$dest_dir" 2>/dev/null || true
 
-    echo -e "${C_CYAN}⬇ Descargando Video(s) en ${height}p (H.264 compatible / Reanudación activa)...${C_RESET}"
-    echo -e "${C_GRAY}Guardando en: ${dest_dir}/${C_RESET}\n"
+    echo -e "${C_CYAN}${MSG_DL_VIDEO_START} ${height}p (H.264 / continue)...${C_RESET}"
+    echo -e "${C_GRAY}${MSG_DL_SAVING_IN} ${dest_dir}/${C_RESET}\n"
 
     local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio/best[height<=${height}]/best"
 
@@ -449,13 +519,13 @@ download_videos() {
     done
 
     if [ "$has_error" -eq 0 ]; then
-        echo -e "\n${C_GREEN}✔ Descarga de video finalizada con éxito.${C_RESET}"
-        notify_user "YT-CLI" "Descarga de video completada en ${dest_dir}"
+        echo -e "\n${C_GREEN}${MSG_DL_ALL_COMPLETE}${C_RESET}"
+        notify_user "${MSG_DL_SUCCESS_NOTIFY}" "${MSG_DL_SUCCESS_MSG} ${dest_dir}"
     else
-        echo -e "\n${C_RED}✖ La descarga falló. Revisa el error arriba (si es TikTok/restringido, prueba con cookies usando :c o actualiza yt-dlp).${C_RESET}"
+        echo -e "\n${C_RED}✖ ${MSG_DL_FAILED}${C_RESET}"
     fi
 
-    echo -ne "${C_YELLOW}Presione [Enter] para volver a la lista...${C_RESET}"
+    echo -ne "${C_YELLOW}${MSG_HELP_PRESS_ENTER}${C_RESET}"
     local dummy=""
     if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
 }
@@ -464,12 +534,12 @@ download_videos() {
 download_music() {
     local targets=("$@")
 
-    echo -e "${C_CYAN}Calidad de audio para MP3:${C_RESET}"
-    echo -e "  ${C_BOLD}[1]${C_RESET} 320 kbps  ${C_GREEN}(Máxima fidelidad)${C_RESET} ${C_YELLOW}★ Predeterminado${C_RESET}"
-    echo -e "  ${C_BOLD}[2]${C_RESET} 192 kbps  ${C_GRAY}(Balance calidad y tamaño)${C_RESET}"
-    echo -e "  ${C_BOLD}[3]${C_RESET} 128 kbps  ${C_GRAY}(Ahorro de espacio / Ideal para playlists)${C_RESET}"
+    echo -e "${C_CYAN}${MSG_DL_MUSIC_QUALITY_HEADER}${C_RESET}"
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_MUSIC_Q1}"
+    echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_MUSIC_Q2}"
+    echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_MUSIC_Q3}"
     echo ""
-    echo -ne "${C_YELLOW}Elige calidad [1-3] (Enter para 320k): ${C_RESET}"
+    echo -ne "${C_YELLOW}${MSG_DL_MUSIC_Q_PROMPT}${C_RESET}"
 
     local user_opt=""
     if [ -t 0 ]; then read -r user_opt || user_opt="1"; else read -r user_opt </dev/tty || user_opt="1"; fi
@@ -483,7 +553,7 @@ download_music() {
         *) bitrate="320" ;;
     esac
 
-    echo -ne "${C_CYAN}¿Incrustar carátula en los MP3? [S/n] (Enter para Sí): ${C_RESET}"
+    echo -ne "${C_CYAN}${MSG_DL_EMBED_COVER_PROMPT:-¿Incrustar carátula en los MP3? [S/n]: }${C_RESET}"
     local user_cover=""
     if [ -t 0 ]; then read -r user_cover || user_cover="s"; else read -r user_cover </dev/tty || user_cover="s"; fi
     [ -z "$user_cover" ] && user_cover="s"
@@ -491,18 +561,17 @@ download_music() {
 
     local EXTRA_ARGS=()
     if [[ "$user_cover" =~ ^[nN]$ ]]; then
-        echo -e "${C_YELLOW}⚡ Modo rápido: Se omitirá la carátula para máxima velocidad.${C_RESET}"
+        EXTRA_ARGS=()
     else
         EXTRA_ARGS+=("--embed-thumbnail")
-        echo -e "${C_GREEN}✔ Se incrustará la carátula oficial en cada archivo.${C_RESET}"
     fi
 
     local dest_dir
     dest_dir=$(choose_destination_folder "audio")
     mkdir -p "$dest_dir" 2>/dev/null || true
 
-    echo -e "${C_CYAN}⬇ Descargando audio en MP3 a ${bitrate} kbps (Reanudación activa)...${C_RESET}"
-    echo -e "${C_GRAY}Guardando en: ${dest_dir}/${C_RESET}\n"
+    echo -e "${C_CYAN}${MSG_DL_MUSIC_START} (${bitrate} kbps)...${C_RESET}"
+    echo -e "${C_GRAY}${MSG_DL_SAVING_IN} ${dest_dir}/${C_RESET}\n"
 
     local has_error=0
     for t in "${targets[@]}"; do
@@ -522,13 +591,13 @@ download_music() {
     done
 
     if [ "$has_error" -eq 0 ]; then
-        echo -e "\n${C_GREEN}✔ Descarga de audio finalizada con éxito.${C_RESET}"
-        notify_user "YT-CLI" "Descarga de canciones completada en ${dest_dir}"
+        echo -e "\n${C_GREEN}${MSG_DL_ALL_COMPLETE}${C_RESET}"
+        notify_user "${MSG_DL_MUSIC_NOTIFY_TITLE}" "${MSG_DL_MUSIC_NOTIFY_MSG} ${dest_dir}"
     else
-        echo -e "\n${C_RED}✖ La descarga de audio falló. Revisa el error arriba.${C_RESET}"
+        echo -e "\n${C_RED}✖ ${MSG_DL_FAILED}${C_RESET}"
     fi
 
-    echo -ne "${C_YELLOW}Presione [Enter] para volver a la lista...${C_RESET}"
+    echo -ne "${C_YELLOW}${MSG_HELP_PRESS_ENTER}${C_RESET}"
     local dummy=""
     if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
 }
@@ -542,14 +611,14 @@ search_and_play() {
     if [[ "$query" =~ ^@([a-zA-Z0-9_.-]+)[[:space:]]+(.+)$ ]]; then
         local ch="${BASH_REMATCH[1]}"
         local term="${BASH_REMATCH[2]}"
-        echo -ne "${C_YELLOW}Buscando en canal @${ch}:${C_RESET} \"${C_BOLD}${term}${C_RESET}\"... \r"
+        echo -ne "${C_YELLOW}${MSG_SEARCHING_CHANNEL:-Buscando en canal} @${ch}:${C_RESET} \"${C_BOLD}${term}${C_RESET}\"... \r"
         search_args=("https://www.youtube.com/@${ch}/search?query=${term}" "--playlist-end" "25")
     elif [[ "$query" =~ ^@([a-zA-Z0-9_.-]+)$ ]]; then
         local ch="${BASH_REMATCH[1]}"
-        echo -ne "${C_YELLOW}Obteniendo videos del canal @${ch}...${C_RESET} \r"
+        echo -ne "${C_YELLOW}${MSG_FETCHING_CHANNEL:-Obteniendo videos del canal} @${ch}...${C_RESET} \r"
         search_args=("https://www.youtube.com/@${ch}/videos" "--playlist-end" "25")
     else
-        echo -ne "${C_YELLOW}Buscando en YouTube:${C_RESET} \"${C_BOLD}${query}${C_RESET}\"... \r"
+        echo -ne "${C_YELLOW}${MSG_SEARCHING:-Buscando en YouTube:} \"${C_BOLD}${query}${C_RESET}\"... \r"
         search_args=("ytsearch25:${query}")
     fi
 
@@ -560,11 +629,11 @@ search_and_play() {
         --flat-playlist \
         --skip-download \
         --no-warnings \
-        --extractor-args "youtube:lang=es" \
+        --extractor-args "youtube:lang=${CURRENT_LANG}" \
         --print "%(title)s [%(duration_string)s - %(uploader)s]	%(id)s" 2>/dev/null) || true
 
     if [ -z "$search_results" ]; then
-        echo -e "${C_RED}No se encontraron resultados para:${C_RESET} \"$query\""
+        echo -e "${C_RED}${MSG_NO_RESULTS:-No se encontraron resultados para:}${C_RESET} \"$query\""
         return
     fi
 
@@ -576,15 +645,15 @@ search_and_play() {
             --delimiter='\t' \
             --with-nth=1 \
             --multi \
-            --prompt="▶ Selecciona video(s) > " \
-            --header="[Enter] Ver | [Tab] Marcar varios | [ESC] Salir | [Flechas] Navegar" \
+            --prompt="${MSG_FZF_PROMPT:-▶ Selecciona video(s) > }" \
+            --header="${MSG_FZF_HEADER:-[Enter] Ver | [Tab] Marcar varios | [ESC] Salir | [Flechas] Navegar}" \
             --height=70% \
             --reverse \
             --border \
             --info=inline) || true
 
         if [ -z "$raw_selection" ]; then
-            echo -e "${C_GRAY}Saliendo de la lista actual de resultados...${C_RESET}"
+            echo -e "${C_GRAY}${MSG_EXITING_LIST:-Saliendo de la lista actual de resultados...}${C_RESET}"
             break
         fi
 
@@ -599,7 +668,7 @@ search_and_play() {
             fi
         done <<< "$raw_selection"
 
-        echo -e "\n${C_GREEN}✔ Elementos seleccionados:${C_RESET} ${C_BOLD}${selected_count}${C_RESET}\n"
+        echo -e "\n${C_GREEN}✔ ${MSG_SELECTED_ITEMS:-Elementos seleccionados:}${C_RESET} ${C_BOLD}${selected_count}${C_RESET}\n"
 
         if [ "$forced_mode" = "ask" ]; then
             choose_action "$selected_count"
@@ -622,7 +691,7 @@ search_and_play() {
 # Guardar enlace directo/playlist en historial y mostrar menú de acciones
 handle_direct_url() {
     local target_url="$1"
-    local label="Enlace: ${target_url}"
+    local label="URL: ${target_url}"
     if [[ "$target_url" == *"list="* ]]; then
         label="Playlist: ${target_url}"
     fi
@@ -650,10 +719,13 @@ show_banner() {
     echo -e "${C_CYAN}    ╚██╔╝     ██║  ╚════╝██║     ██║     ██║${C_RESET}"
     echo -e "${C_CYAN}     ██║      ██║        ╚██████╗███████╗██║${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}"
-    echo -e "  ${C_BOLD}Cliente Multimedia: YouTube, TikTok, X, Reels y +1000 sitios${C_RESET}"
-    echo -e "  ${C_GRAY}Aceleración HWDEC Auto • Cola FZF • Descargas MP4/MP3${C_RESET}"
-    echo -e "  ${C_YELLOW}Búsquedas: término | @canal | @canal término | enlaces URL${C_RESET}"
-    echo -e "  ${C_YELLOW}Comandos:  [:help] Ayuda  [:h] Historial  [:c] Cookies  [q] Salir${C_RESET}"
+    echo -e "  ${C_BOLD}${MSG_BANNER_CREDITS:-YT-CLI v1.3 • Creado por Kenny Waddell (@KennyWaddell)}${C_RESET}"
+    echo -e "  ${C_GRAY}${MSG_BANNER_SUBTITLE:-Cliente Multimedia: YouTube, TikTok, X, Reels y +1000 sitios}${C_RESET}"
+    echo -e "  ${C_GRAY}${MSG_BANNER_FEATURES:-Aceleración HWDEC Auto • Cola FZF • Descargas MP4/MP3}${C_RESET}"
+    echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}"
+    echo -e "  ${C_YELLOW}${MSG_BANNER_SEARCHES:-Búsquedas: término | @canal | @canal término | enlaces URL}${C_RESET}"
+    echo -e "  ${C_YELLOW}${MSG_BANNER_CMD_1:-Comandos:  [:help] Ayuda     [:h] Historial    [:c] Cookies}${C_RESET}"
+    echo -e "  ${C_YELLOW}${MSG_BANNER_CMD_2:-           [:lang] Idioma    [:about] Créditos [q] Salir}${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}\n"
 }
 
@@ -661,27 +733,49 @@ show_banner() {
 show_interactive_help() {
     clear
     echo -e "${C_CYAN}================================================================${C_RESET}"
-    echo -e "${C_BOLD}                   GUÍA RÁPIDA DE COMANDOS (YT-CLI)${C_RESET}"
+    echo -e "${C_BOLD}                   ${MSG_HELP_TITLE:-GUÍA RÁPIDA DE COMANDOS (YT-CLI)}${C_RESET}"
     echo -e "${C_CYAN}================================================================${C_RESET}\n"
-    echo -e "  ${C_YELLOW}Búsquedas y Enlaces:${C_RESET}"
-    echo -e "    ${C_GREEN}palabras clave${C_RESET}     Búsqueda general en YouTube (ej: noticias de hoy)"
-    echo -e "    ${C_GREEN}@canal${C_RESET}             Ver videos recientes de un canal (ej: @ElCuriosoBen)"
-    echo -e "    ${C_GREEN}@canal término${C_RESET}     Buscar dentro de un canal (ej: @DrossRotzank misterio)"
-    echo -e "    ${C_GREEN}https://...${C_RESET}        Pega enlaces de YouTube, TikTok, X, Reels, etc.\n"
-    echo -e "  ${C_YELLOW}Comandos en la consola interactiva:${C_RESET}"
-    echo -e "    ${C_GREEN}:help${C_RESET} o ${C_GREEN}:?${C_RESET}        Muestra este resumen de ayuda"
-    echo -e "    ${C_GREEN}:h${C_RESET}                 Abre el historial interactivo de reproducción"
-    echo -e "    ${C_GREEN}:clear${C_RESET}             Borra todo el historial local guardado"
-    echo -e "    ${C_GREEN}:c${C_RESET}                 Activa cookies de navegador (Brave, Firefox, etc.)"
-    echo -e "    ${C_GREEN}q${C_RESET} o ${C_GREEN}salir${C_RESET}          Cierra YT-CLI\n"
-    echo -e "  ${C_YELLOW}Opciones al arrancar desde terminal externa:${C_RESET}"
-    echo -e "    ${C_CYAN}yt-cli -a <query/url>${C_RESET}    Modo podcast (Solo audio, ~25 MB RAM)"
-    echo -e "    ${C_CYAN}yt-cli -d <query/url>${C_RESET}    Descargar directamente en MP4 (720p H.264)"
-    echo -e "    ${C_CYAN}yt-cli -m <query/url>${C_RESET}    Descargar canción directamente en MP3 (320k)"
-    echo -e "    ${C_CYAN}yt-cli -H${C_RESET}                Abrir historial directamente"
-    echo -e "    ${C_CYAN}yt-cli -h${C_RESET}                Ver todos los flags de ejecución\n"
+    echo -e "  ${C_YELLOW}${MSG_HELP_SEARCH_HEADER:-Búsquedas y Enlaces:}${C_RESET}"
+    echo -e "    ${C_GREEN}palabras clave / keywords${C_RESET} ${MSG_HELP_SEARCH_KW}"
+    echo -e "    ${C_GREEN}@canal / @channel${C_RESET}         ${MSG_HELP_SEARCH_CH}"
+    echo -e "    ${C_GREEN}@canal query${C_RESET}              ${MSG_HELP_SEARCH_CH_TERM}"
+    echo -e "    ${C_GREEN}https://...${C_RESET}                   ${MSG_HELP_SEARCH_URL}\n"
+    echo -e "  ${C_YELLOW}${MSG_HELP_CMD_HEADER:-Comandos en la consola interactiva:}${C_RESET}"
+    echo -e "    ${C_GREEN}:help${C_RESET} o ${C_GREEN}:?${C_RESET}                   ${MSG_HELP_CMD_HELP}"
+    echo -e "    ${C_GREEN}:h${C_RESET}                            ${MSG_HELP_CMD_HIST}"
+    echo -e "    ${C_GREEN}:clear${C_RESET}                        ${MSG_HELP_CMD_CLEAR}"
+    echo -e "    ${C_GREEN}:c${C_RESET}                            ${MSG_HELP_CMD_COOKIE}"
+    echo -e "    ${C_GREEN}:lang [es|en]${C_RESET}                 ${MSG_HELP_CMD_LANG}"
+    echo -e "    ${C_GREEN}:about${C_RESET}                        ${MSG_HELP_CMD_ABOUT:-Muestra los créditos y acerca de YT-CLI}"
+    echo -e "    ${C_GREEN}q${C_RESET}                             ${MSG_HELP_CMD_QUIT}\n"
+    echo -e "  ${C_YELLOW}${MSG_HELP_CLI_HEADER:-Opciones al arrancar desde terminal externa:}${C_RESET}"
+    echo -e "    ${C_CYAN}yt-cli -a <query/url>${C_RESET}               ${MSG_HELP_CLI_AUDIO}"
+    echo -e "    ${C_CYAN}yt-cli -d <query/url>${C_RESET}               ${MSG_HELP_CLI_DOWN}"
+    echo -e "    ${C_CYAN}yt-cli -m <query/url>${C_RESET}               ${MSG_HELP_CLI_MUSIC}"
+    echo -e "    ${C_CYAN}yt-cli -H${C_RESET}                           ${MSG_HELP_CLI_HIST}"
+    echo -e "    ${C_CYAN}yt-cli --lang [es|en]${C_RESET}               ${MSG_HELP_CMD_LANG}"
+    echo -e "    ${C_CYAN}yt-cli -v / --version${C_RESET}               ${MSG_HELP_CMD_ABOUT:-Muestra los créditos y acerca de YT-CLI}"
+    echo -e "    ${C_CYAN}yt-cli -h${C_RESET}                           ${MSG_HELP_CLI_HELP}\n"
     echo -e "${C_CYAN}================================================================${C_RESET}"
-    echo -ne "${C_GRAY}Presiona [Enter] para volver al menú principal...${C_RESET}"
+    echo -ne "${C_GRAY}${MSG_HELP_PRESS_ENTER:-Presiona [Enter] para volver al menú principal...}${C_RESET}"
+    local _dummy=""
+    if [ -t 0 ]; then read -r _dummy; else read -r _dummy </dev/tty; fi
+}
+
+# 10c. Pantalla de créditos y acerca de
+show_about() {
+    clear
+    echo -e "${C_CYAN}================================================================${C_RESET}"
+    echo -e "${C_BOLD}                   ${MSG_ABOUT_TITLE:-ACERCA DE YT-CLI / CRÉDITOS}${C_RESET}"
+    echo -e "${C_CYAN}================================================================${C_RESET}\n"
+    echo -e "  ${C_YELLOW}${MSG_ABOUT_VERSION:-Versión:}${C_RESET}      ${C_BOLD}v1.3${C_RESET}"
+    echo -e "  ${C_YELLOW}${MSG_ABOUT_AUTHOR:-Autor:}${C_RESET}        ${C_GREEN}Kenny Waddell (@KennyWaddell)${C_RESET}"
+    echo -e "  ${C_YELLOW}${MSG_ABOUT_COLLAB:-Colaboración:}${C_RESET} Google DeepMind / Antigravity"
+    echo -e "  ${C_YELLOW}${MSG_ABOUT_LICENSE:-Licencia:}${C_RESET}     GNU General Public License v3.0 (GPLv3)"
+    echo -e "  ${C_YELLOW}${MSG_ABOUT_REPO:-Repositorio:}${C_RESET}  ${C_CYAN}https://github.com/KennyWaddell/yt-cli${C_RESET}\n"
+    echo -e "  ${C_GRAY}${MSG_ABOUT_TAGLINE:-Dedicado a la comunidad de Linux y usuarios de hardware modesto.}${C_RESET}\n"
+    echo -e "${C_CYAN}================================================================${C_RESET}"
+    echo -ne "${C_GRAY}${MSG_HELP_PRESS_ENTER:-Presiona [Enter] para volver al menú principal...}${C_RESET}"
     local _dummy=""
     if [ -t 0 ]; then read -r _dummy; else read -r _dummy </dev/tty; fi
 }
@@ -703,6 +797,8 @@ main() {
                 echo "  -m, --music [query/url]       Descargar canción directamente en MP3 320k"
                 echo "  -H, --history                 Abrir el historial de vídeos vistos"
                 echo "      --clear-history           Borrar todo el historial guardado"
+                echo "      --lang [es|en]            Configurar idioma / Set language"
+                echo "  -v, --version, --about        Mostrar versión y créditos / Show credits"
                 echo "  -h, --help                    Mostrar esta ayuda"
                 echo ""
                 echo "Ejemplos:"
@@ -717,14 +813,32 @@ main() {
                 echo "  yt-cli https://youtu.be/...   Opciones directas para un enlace"
                 exit 0
                 ;;
+            -v|--version|--about)
+                echo "YT-CLI v1.3"
+                echo "Autor: Kenny Waddell (@KennyWaddell)"
+                echo "Colaboración: Google DeepMind / Antigravity"
+                echo "Licencia: GNU General Public License v3.0 (GPLv3)"
+                echo "Repositorio: https://github.com/KennyWaddell/yt-cli"
+                exit 0
+                ;;
             -c|--cookies)
                 if [ $# -gt 1 ]; then
                     set_cookies "$2"
                     shift 2
                 else
-                    echo -e "${C_RED}[ERROR]${C_RESET} Debes indicar un navegador o ruta a cookies (ej: -c brave, -c firefox, -c cookies.txt)"
+                    echo -e "${C_RED}[ERROR]${C_RESET} ${MSG_COOKIE_BROWSER_EMPTY:-Debes indicar un navegador o ruta a cookies (ej: -c brave, -c firefox, -c cookies.txt)}"
                     exit 1
                 fi
+                ;;
+            --lang)
+                if [ $# -gt 1 ]; then
+                    set_language "$2"
+                    shift 2
+                else
+                    set_language ""
+                    shift 1
+                fi
+                exit 0
                 ;;
             -H|--history)
                 show_history_menu
@@ -793,9 +907,9 @@ main() {
     clipboard_url=$(get_clipboard_url)
     if [ -n "$clipboard_url" ]; then
         show_banner
-        echo -e "${C_GREEN}📋 Enlace detectado en el portapapeles:${C_RESET}"
+        echo -e "${C_GREEN}${MSG_CLIPBOARD_DETECTED:-📋 Enlace detectado en el portapapeles:}${C_RESET}"
         echo -e "   ${C_CYAN}${clipboard_url}${C_RESET}\n"
-        echo -ne "${C_YELLOW}¿Deseas abrir este enlace? [S/n] (Enter para Sí): ${C_RESET}"
+        echo -ne "${C_YELLOW}${MSG_CLIPBOARD_CONFIRM:-¿Deseas abrir este enlace? [S/n] (Enter para Sí): }${C_RESET}"
         local use_clip=""
         if [ -t 0 ]; then read -r use_clip || use_clip="s"; else read -r use_clip </dev/tty || use_clip="s"; fi
         [ -z "$use_clip" ] && use_clip="s"
@@ -809,20 +923,33 @@ main() {
     # Bucle interactivo normal
     while true; do
         show_banner
-        echo -ne "${C_CYAN}Buscar, pegar enlace o comando [:help | :h | @canal | q]: ${C_RESET}"
+        echo -ne "${C_CYAN}${MSG_SEARCH_PROMPT:-Buscar, pegar enlace o comando [:help | :h | :lang | @canal | q]: }${C_RESET}"
         read -r query
 
         if [ -z "$query" ]; then
             continue
         fi
 
-        if [[ "$query" == "q" || "$query" == "exit" || "$query" == "salir" ]]; then
-            echo -e "${C_GRAY}Hasta luego.${C_RESET}"
+        if [[ "$query" == "q" || "$query" == "exit" || "$query" == "salir" || "$query" == "quit" ]]; then
+            echo -e "${C_GRAY}${MSG_GOODBYE:-Hasta luego.}${C_RESET}"
             break
         fi
 
         if [[ "$query" == ":help" || "$query" == ":?" || "$query" == "help" || "$query" == "ayuda" || "$query" == ":ayuda" ]]; then
             show_interactive_help
+            continue
+        fi
+
+        if [[ "$query" =~ ^:lang([[:space:]]+.*)?$ ]]; then
+            local l_arg
+            l_arg=$(echo "$query" | awk '{print $2}')
+            set_language "$l_arg"
+            sleep 1.2
+            continue
+        fi
+
+        if [[ "$query" == ":about" || "$query" == ":creditos" || "$query" == ":credits" || "$query" == "creditos" || "$query" == "credits" || "$query" == "about" ]]; then
+            show_about
             continue
         fi
 
@@ -838,7 +965,7 @@ main() {
         fi
 
         if [[ "$query" == ":c" || "$query" == "cookies" ]]; then
-            echo -ne "${C_CYAN}Introduce navegador o ruta a cookies (ej: brave, firefox, cookies.txt): ${C_RESET}"
+            echo -ne "${C_CYAN}${MSG_COOKIE_PROMPT:-Introduce navegador o ruta a cookies (ej: brave, firefox, cookies.txt): }${C_RESET}"
             read -r c_input
             if [ -n "$c_input" ]; then
                 set_cookies "$c_input"
@@ -853,9 +980,10 @@ main() {
             search_and_play "$query" "ask"
         fi
 
-        echo -ne "\n${C_YELLOW}¿Presione [Enter] para otra búsqueda o [q] para salir: ${C_RESET}"
+        echo -ne "\n${C_YELLOW}${MSG_PRESS_ENTER_RETRY:-¿Presione [Enter] para otra búsqueda o [q] para salir: }${C_RESET}"
         read -r next_action
-        if [[ "$next_action" == "q" || "$next_action" == "exit" ]]; then
+        if [[ "$next_action" == "q" || "$next_action" == "exit" || "$next_action" == "quit" ]]; then
+            echo -e "${C_GRAY}${MSG_GOODBYE:-Hasta luego.}${C_RESET}"
             break
         fi
     done
