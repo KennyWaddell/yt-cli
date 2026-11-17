@@ -37,7 +37,7 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
 2. **Experiencia Multiplataforma Unificada:** `ytfzf` está limitado a sistemas POSIX (Linux/macOS/BSD). `YT-CLI` ofrece una suite completa: terminal CLI pura en Linux y aplicación gráfica nativa y portable (`YT-CLI.exe`) para Windows 7, 8.1, 10 y 11.
 3. **Gestor de Descargas Completo Integrado:** Mientras que `ytfzf` está pensado primordialmente para visualización, `YT-CLI` incluye un gestor completo de descargas con selector de carpetas (incluyendo pendrives USB montados), reanudación automática (`--continue`), conversión de audio a MP3 (320 kbps) con carátula y etiquetas ID3, y descarga de videos en MP4.
 4. **Búsqueda por Canales y Creadores:** Búsqueda directa dentro de canales de YouTube escribiendo `@canal` o `@canal término de búsqueda`.
-5. **Miniaturas Opcionales y No Invasivas:** Si tienes instalado `chafa` (`sudo apt install chafa`), `YT-CLI` muestra miniaturas a color en el panel lateral de FZF mediante URLs directas del CDN de YouTube, sin requerir hacks gráficos de X11 como ueberzug. Si no lo tienes, funciona en modo texto ultrarrápido sin errores.
+5. **Filosofía UNIX sin hacks gráficos en terminal:** Mientras que herramientas como `ytfzf` dependen de configuraciones complejas para emular imágenes en terminales de texto (que suelen distorsionarse o parpadear según la fuente y el emulador), `YT-CLI` mantiene su cliente de Linux como una herramienta CLI pura, ultrarrápida y libre de distracciones, reservando la previsualización visual nativa para la interfaz de Windows.
 
 ---
 
@@ -46,7 +46,7 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
 * 🔍 **Buscador interactivo ultrarrápido:** Filtra en tiempo real por título, duración y canal mediante el teclado con `fzf`.
 * 🎶 **Cola de reproducción y selección múltiple:** Marca varios videos o canciones con la tecla `Tab` en `fzf` para reproducirlos en cola continua en MPV (`>` siguiente / `<` anterior) o descargarlos en lote.
 * 📋 **Detección mágica del portapapeles:** Al arrancar, si tienes copiado un enlace de YouTube, TikTok, X (Twitter), etc., `yt-cli` lo detecta automáticamente y te ofrece abrirlo o descargarlo al instante.
-* 🔄 **Lista de resultados persistente:** Cuando un video termina (o pulsas `q` para cerrarlo), la lista de búsqueda anterior **reaparece al instante** sin tener que volver a escribir ni recargar.
+* 🔄 **Lista de resultados persistente y navegación segura:** Cuando un video termina (o pulsas `q` para cerrarlo), la lista de búsqueda anterior **reaparece al instante**. Además, si seleccionas un video por error en FZF, el menú de acciones incluye la opción `[0]` para cancelar y regresar inmediatamente a tus resultados sin recargar nada.
 * 📺 **Selector de resoluciones inteligente:**
   * **720p HD a 30fps:** El equilibrio perfecto para pantallas de portátiles y bajo consumo de CPU.
   * **1080p Full HD:** Forzando códec H.264 acelerado por GPU (con fallback suave a 720p si el video no dispone de H.264 para proteger tu CPU de códecs pesados como AV1 o VP9).
@@ -82,7 +82,6 @@ Requiere las siguientes herramientas estándar de Linux:
   ```bash
   sudo apt update && sudo apt install yt-dlp fzf mpv ffmpeg
   ```
-  *(Opcional)*: Para miniaturas en terminal, instala `chafa`: `sudo apt install chafa`.
 
 > [!TIP]
 > En distribuciones como Debian, Ubuntu LTS o Linux Mint, la versión de `yt-dlp` en los repositorios de `apt` puede estar desactualizada respecto a los cambios frecuentes de la API de YouTube. Si experimentas problemas de extracción, se recomienda instalar `yt-dlp` vía `pipx` o descargar su binario oficial:
@@ -95,11 +94,11 @@ Requiere las siguientes herramientas estándar de Linux:
 
 * **Arch Linux / Manjaro:**
   ```bash
-  sudo pacman -S yt-dlp fzf mpv ffmpeg chafa
+  sudo pacman -S yt-dlp fzf mpv ffmpeg
   ```
 * **Fedora:**
   ```bash
-  sudo dnf install yt-dlp fzf mpv ffmpeg chafa
+  sudo dnf install yt-dlp fzf mpv ffmpeg
   ```
 
 ---
@@ -211,7 +210,6 @@ YT-CLI incluye una versión oficial con interfaz gráfica moderna y ligera para 
 - [x] Aceleración agnóstica por hardware (`--hwdec=auto-safe`: Intel VA-API, AMD Mesa, Nvidia NVDEC) y desbloqueo de 720p/1080p (v1.2).
 - [x] Soporte para portapapeles en Wayland (`wl-paste`) y X11 (`xclip` / `xsel`) (v1.2).
 - [x] Filtrado y búsqueda directa en canales específicos (`@canal` o `@canal término`) (v1.2).
-- [x] Previsualización con miniaturas opcional en terminal mediante `chafa` y URLs directas del CDN de YouTube (v1.2).
 - [ ] Internacionalización (i18n): Soporte para español e inglés y sistema de localización de idiomas (previsto para v1.3).
 - [ ] Actualizador integrado de `yt-dlp` desde comando CLI y botón en GUI (previsto para v1.3).
 - [ ] Presets y plantillas de configuración personalizadas (previsto para v1.3).

@@ -2,7 +2,7 @@
 Version=1.0
 Type=Application
 Name=YT-CLI (Ligero)
-Comment=Cliente y descargador ligero de YouTube y multimedia para terminal con aceleración VA-API
+Comment=Cliente y descargador ligero de YouTube y multimedia para terminal con aceleración por hardware (auto-safe)
 Exec=x-terminal-emulator -T "YT-CLI" -e yt-cli
 Icon=yt-cli
 Terminal=false

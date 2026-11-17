@@ -35,31 +35,7 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     echo -e "  Arch Linux:           ${C_BOLD}sudo pacman -S ${MISSING_DEPS[*]}${C_RESET}"
     echo -e "  Fedora:               ${C_BOLD}sudo dnf install ${MISSING_DEPS[*]}${C_RESET}\n"
 else
-    echo -e "${C_GREEN}✔ Todas las dependencias base (yt-dlp, fzf, mpv, ffmpeg) están instaladas.${C_RESET}\n"
-fi
-
-# Dependencia opcional para previsualización de miniaturas (chafa)
-if command -v chafa >/dev/null 2>&1; then
-    echo -e "${C_GREEN}✔ chafa detectado (previsualización de miniaturas habilitada).${C_RESET}\n"
-else
-    echo -e "${C_GRAY}ℹ chafa no está instalado (opcional: necesario solo para previsualizar miniaturas en terminal con FZF).${C_RESET}"
-    if [ -t 0 ]; then
-        echo -ne "${C_YELLOW}¿Deseas instalar 'chafa' ahora para habilitar las miniaturas? [s/N]: ${C_RESET}"
-        read -r install_chafa || install_chafa="n"
-        if [[ "$install_chafa" =~ ^[sSyY]$ ]]; then
-            echo -e "${C_CYAN}Instalando chafa con tu gestor de paquetes...${C_RESET}"
-            if command -v apt-get >/dev/null 2>&1; then
-                sudo apt-get update && sudo apt-get install -y chafa || true
-            elif command -v pacman >/dev/null 2>&1; then
-                sudo pacman -S --noconfirm chafa || true
-            elif command -v dnf >/dev/null 2>&1; then
-                sudo dnf install -y chafa || true
-            elif command -v zypper >/dev/null 2>&1; then
-                sudo zypper install -y chafa || true
-            fi
-        fi
-    fi
-    echo ""
+    echo -e "${C_GREEN}✔ Todas las dependencias (yt-dlp, fzf, mpv, ffmpeg) están instaladas.${C_RESET}\n"
 fi
 
 # 2. Instalación del ejecutable

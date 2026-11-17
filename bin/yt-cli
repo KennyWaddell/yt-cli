@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # YT-CLI: Lightweight YouTube & Multimedia Client for Low-Resource Linux Systems
-# Optimization: Intel Celeron / Atom / 2GB RAM / Hardware VA-API decoding
+# Optimization: Intel Celeron / Atom / 2GB RAM / Hardware Auto-Safe decoding (VA-API, Mesa, NVDEC)
 # Backend: yt-dlp + fzf + mpv
 # License: GNU General Public License v3.0 (GPLv3)
 # ==============================================================================
@@ -166,6 +166,7 @@ EOF
                 down_720)   download_videos "720" "$url" ;;
                 down_1080)  download_videos "1080" "$url" ;;
                 down_mp3)   download_music "$url" ;;
+                back|cancel) return ;;
             esac
         fi
     fi
@@ -260,7 +261,7 @@ choose_destination_folder() {
     if [ ${#media_dirs[@]} -gt 0 ]; then
         for mdir in "${media_dirs[@]}"; do
             echo -e "  ${C_BOLD}[${opt_index}]${C_RESET} Pendrive/Disco externo: ${C_CYAN}${mdir}${C_RESET}" >&2
-            ((opt_index++))
+            opt_index=$((opt_index + 1))
         done
     fi
 
@@ -292,7 +293,7 @@ choose_destination_folder() {
 
 SELECTED_ACTION="play_720"
 
-# 5. Menú interactivo unificado (Reproducir / Descargar)
+# 5. Menú interactivo unificado (Reproducir / Descargar / Volver)
 choose_action() {
     local count="${1:-1}"
     local label_items="este video"
@@ -300,7 +301,7 @@ choose_action() {
 
     echo -e "${C_CYAN}¿Qué deseas hacer con ${label_items}?${C_RESET}"
     echo -e "  ${C_BOLD}── REPRODUCIR (STREAMING AL VUELO) ─────────────────${C_RESET}"
-    echo -e "  ${C_BOLD}[1]${C_RESET} Ver en 720p HD a 30fps  ${C_GREEN}(Recomendado GPU VA-API)${C_RESET} ${C_YELLOW}★ Predeterminado${C_RESET}"
+    echo -e "  ${C_BOLD}[1]${C_RESET} Ver en 720p HD a 30fps  ${C_GREEN}(Recomendado GPU Auto-Safe)${C_RESET} ${C_YELLOW}★ Predeterminado${C_RESET}"
     echo -e "  ${C_BOLD}[2]${C_RESET} Ver en 1080p Full HD     ${C_GRAY}(30fps acelerado H.264)${C_RESET}"
     echo -e "  ${C_BOLD}[3]${C_RESET} Ver en 480p / 360p       ${C_GRAY}(Ahorro de datos/CPU)${C_RESET}"
     echo -e "  ${C_BOLD}[4]${C_RESET} Escuchar solo audio      ${C_GRAY}(Modo radio/podcast - ~25MB RAM)${C_RESET}"
@@ -310,7 +311,10 @@ choose_action() {
     echo -e "  ${C_BOLD}[6]${C_RESET} Descargar Video(s) 1080p ${C_GRAY}(MP4 Full HD en disco/USB)${C_RESET}"
     echo -e "  ${C_BOLD}[7]${C_RESET} Descargar Audio(s) MP3   ${C_GRAY}(Con carátula y metadatos)${C_RESET}"
     echo ""
-    echo -ne "${C_YELLOW}Elige opción [1-7] (Enter para ver en 720p): ${C_RESET}"
+    echo -e "  ${C_BOLD}── NAVEGACIÓN ──────────────────────────────────────${C_RESET}"
+    echo -e "  ${C_BOLD}[0]${C_RESET} Volver a la lista / Cancelar"
+    echo ""
+    echo -ne "${C_YELLOW}Elige opción [1-7 | 0 para volver] (Enter para ver en 720p): ${C_RESET}"
 
     local user_opt=""
     if [ -t 0 ]; then
@@ -329,6 +333,7 @@ choose_action() {
         5) SELECTED_ACTION="down_720" ;;
         6) SELECTED_ACTION="down_1080" ;;
         7|[mM]) SELECTED_ACTION="down_mp3" ;;
+        0|[vV]|[bB]|[qQ]|cancel|cancelar|volver|atras) SELECTED_ACTION="back" ;;
         *) SELECTED_ACTION="play_720" ;;
     esac
 }
@@ -563,15 +568,6 @@ search_and_play() {
         return
     fi
 
-    local fzf_extra_args=()
-    if command -v chafa >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
-        mkdir -p "/tmp/yt-cli-thumbs" 2>/dev/null || true
-        fzf_extra_args+=(
-            "--preview" "id={2}; [ -n \"\$id\" ] && { [ -f /tmp/yt-cli-thumbs/\$id.jpg ] || curl -sL --max-time 3 \"https://i.ytimg.com/vi/\$id/mqdefault.jpg\" -o /tmp/yt-cli-thumbs/\$id.jpg; } && chafa --size 40x16 /tmp/yt-cli-thumbs/\$id.jpg 2>/dev/null"
-            "--preview-window=right:45%:wrap"
-        )
-    fi
-
     while true; do
         echo -ne "\033[2K\r"
 
@@ -581,12 +577,11 @@ search_and_play() {
             --with-nth=1 \
             --multi \
             --prompt="▶ Selecciona video(s) > " \
-            --header="[Tab] Marcar varios | [Enter] Confirmar | [ESC] Salir | [Flechas] Navegar" \
+            --header="[Enter] Ver | [Tab] Marcar varios | [ESC] Salir | [Flechas] Navegar" \
             --height=70% \
             --reverse \
             --border \
-            --info=inline \
-            ${fzf_extra_args[@]+"${fzf_extra_args[@]}"}) || true
+            --info=inline) || true
 
         if [ -z "$raw_selection" ]; then
             echo -e "${C_GRAY}Saliendo de la lista actual de resultados...${C_RESET}"
@@ -600,7 +595,7 @@ search_and_play() {
             if [ -n "$id" ]; then
                 selected_urls+=("https://www.youtube.com/watch?v=${id}")
                 record_history "$title" "$id"
-                ((selected_count++))
+                selected_count=$((selected_count + 1))
             fi
         done <<< "$raw_selection"
 
@@ -616,6 +611,7 @@ search_and_play() {
                 down_720)   download_videos "720" "${selected_urls[@]}" ;;
                 down_1080)  download_videos "1080" "${selected_urls[@]}" ;;
                 down_mp3)   download_music "${selected_urls[@]}" ;;
+                back|cancel) continue ;;
             esac
         else
             play_videos "$forced_mode" "${selected_urls[@]}"
@@ -641,6 +637,7 @@ handle_direct_url() {
         down_720)   download_videos "720" "$target_url" ;;
         down_1080)  download_videos "1080" "$target_url" ;;
         down_mp3)   download_music "$target_url" ;;
+        back|cancel) return ;;
     esac
 }
 
