@@ -1,86 +1,85 @@
 # 🎬 YT-CLI
 
 <p align="center">
-  <b><a href="README.en.md">English</a></b> • <b><a href="README.md">Español</a></b>
+  <b>English</b> • <b><a href="README.es.md">Leer en Español</a></b>
 </p>
 
-> **Cliente y Gestor Multimedia Ultraligero para Terminal en Linux y GUI Portable en Windows**  
-> Diseñado específicamente para equipos de recursos limitados (Intel Celeron, Atom, ThinkPads clásicas y PCs con 2 GB de RAM). Compatible con Linux y Windows 7, 8.1, 10 y 11.
+> **Ultralight Terminal Multimedia Client for Linux & Standalone Portable GUI for Windows**  
+> Specifically engineered for resource-constrained systems (Intel Celeron, Atom, vintage ThinkPads, and PCs with 2 GB RAM). Compatible with Linux and Windows 7 SP1, 8.1, 10, and 11.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Platform: Linux & Windows](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue.svg)](#requisitos-del-sistema)
-[![Shell: Bash](https://img.shields.io/badge/Shell-Bash-green.svg)](#instalación-rápida-en-linux)
-[![GUI: Python Tkinter](https://img.shields.io/badge/GUI-Tkinter%20(Windows)-orange.svg)](#uso-en-windows-portable)
-[![Backend: MPV & yt-dlp](https://img.shields.io/badge/Backend-MPV%20%2B%20yt--dlp-red.svg)](#características-principales)
+[![Platform: Linux & Windows](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue.svg)](#system-requirements)
+[![Shell: Bash](https://img.shields.io/badge/Shell-Bash-green.svg)](#quick-installation-on-linux)
+[![GUI: Python Tkinter](https://img.shields.io/badge/GUI-Tkinter%20(Windows)-orange.svg)](#windows-portable-standalone-usage)
+[![Backend: MPV & yt-dlp](https://img.shields.io/badge/Backend-MPV%20%2B%20yt--dlp-red.svg)](#key-features)
 
 ---
 
-## ⚡ El Problema que Resuelve
+## ⚡ The Problem It Solves
 
-En navegadores web modernos (Brave, Chrome, Firefox), abrir YouTube consume entre **900 MB y 1.4 GB de RAM**, además de disparar la CPU al **100%** debido a cientos de scripts JavaScript, telemetría y renderizado pesado del DOM. En procesadores modestos de 2 núcleos, esto provoca congelamientos, ventiladores al máximo y videos con tirones.
+Modern web browsers (Brave, Chrome, Firefox) typically consume between **900 MB and 1.4 GB of RAM** just to open YouTube, driving dual-core CPUs to **100% utilization** due to bloated JavaScript bundles, telemetry, and heavyweight DOM rendering. On older machines, this results in system freezing, screaming cooling fans, and dropped frames.
 
-**YT-CLI** elimina por completo el navegador de la ecuación:
-* Realiza búsquedas instantáneas en texto plano con **FZF**.
-* Transmite el flujo de video directamente a **MPV**.
-* Negocia decodificación agnóstica por hardware (`--hwdec=auto-safe`: Intel VA-API, AMD Mesa, Nvidia NVDEC) priorizando el códec **H.264 (AVC) a un máximo de 30 fps** para cuidar tu CPU de códecs pesados como VP9 o AV1.
+**YT-CLI** cuts the web browser entirely out of the equation:
+* Instant plain-text search driven by **FZF**.
+* Streams the multimedia feed directly to **MPV**.
+* Hardware-agnostic GPU decoding (`--hwdec=auto-safe`: Intel VA-API, AMD Mesa, Nvidia NVDEC) capped at **H.264 (AVC) up to 30 fps** to protect legacy processors from taxing VP9 or AV1 software decoding.
 
-| Métrica | YouTube en Navegador Web | YT-CLI + MPV |
+| Metric | YouTube in Web Browser | YT-CLI + MPV |
 | :--- | :--- | :--- |
-| **Consumo de Memoria RAM** | ~1.100 MB (1.1 GB) | **~75 MB - 110 MB** (Ahorro del 90%) |
-| **Carga de CPU en Reproducción** | 80% - 100% (Lags y calor) | **15% - 25%** (Fluido a 60/30fps) |
-| **Modo Solo Audio (Música/Podcast)** | 600 MB - 800 MB | **~25 MB** |
-| **Privacidad** | Rastreadores y telemetría en la nube | **100% Privado (Cero telemetría / Historial solo local y opcional)** |
+| **RAM Consumption** | ~1,100 MB (1.1 GB) | **~75 MB - 110 MB** (90% savings) |
+| **CPU Usage during Playback** | 80% - 100% (Thermal throttling & lags) | **15% - 25%** (Smooth 30/60 fps) |
+| **Audio-Only Mode (Podcast/Music)** | 600 MB - 800 MB | **~25 MB** |
+| **Privacy** | Tracking cookies & cloud analytics | **100% Private (Zero telemetry / Local-only history)** |
 
 ---
 
-## 🥊 ¿En qué se diferencia YT-CLI de ytfzf?
+## 🥊 How Does YT-CLI Differ from ytfzf?
 
-Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se diferencian:
+If you are familiar with terminal tools like `ytfzf`, here is how `YT-CLI` compares:
 
-1. **Cero configuración previa (Out-of-the-Box):** `ytfzf` requiere editar archivos de configuración y scripts para forzar perfiles ligeros en equipos antiguos. `YT-CLI` viene preajustado desde el primer segundo con filtros H.264 y aceleración de hardware segura (`auto-safe`) para que una laptop modesta no sufra congelamientos.
-2. **Experiencia Multiplataforma Unificada:** `ytfzf` está limitado a sistemas POSIX (Linux/macOS/BSD). `YT-CLI` ofrece una suite completa: terminal CLI pura en Linux y aplicación gráfica nativa y portable (`YT-CLI.exe`) para Windows 7, 8.1, 10 y 11.
-3. **Gestor de Descargas Completo Integrado:** Mientras que `ytfzf` está pensado primordialmente para visualización, `YT-CLI` incluye un gestor completo de descargas con selector de carpetas (incluyendo pendrives USB montados), reanudación automática (`--continue`), conversión de audio a MP3 (320 kbps) con carátula y etiquetas ID3, y descarga de videos en MP4.
-4. **Búsqueda por Canales y Creadores:** Búsqueda directa dentro de canales de YouTube escribiendo `@canal` o `@canal término de búsqueda`.
-5. **Filosofía UNIX sin hacks gráficos en terminal:** Mientras que herramientas como `ytfzf` dependen de configuraciones complejas para emular imágenes en terminales de texto (que suelen distorsionarse o parpadear según la fuente y el emulador), `YT-CLI` mantiene su cliente de Linux como una herramienta CLI pura, ultrarrápida y libre de distracciones, reservando la previsualización visual nativa para la interfaz de Windows.
-
----
-
-## ✨ Características Principales
-
-* 🔍 **Buscador interactivo ultrarrápido:** Filtra en tiempo real por título, duración y canal mediante el teclado con `fzf`.
-* 🎶 **Cola de reproducción y selección múltiple:** Marca varios videos o canciones con la tecla `Tab` en `fzf` para reproducirlos en cola continua en MPV (`>` siguiente / `<` anterior) o descargarlos en lote.
-* 📋 **Detección mágica del portapapeles:** Al arrancar, si tienes copiado un enlace de YouTube, TikTok, X (Twitter), etc., `yt-cli` lo detecta automáticamente y te ofrece abrirlo o descargarlo al instante.
-* 🔄 **Lista de resultados persistente y navegación segura:** Cuando un video termina (o pulsas `q` para cerrarlo), la lista de búsqueda anterior **reaparece al instante**. Además, si seleccionas un video por error en FZF, el menú de acciones incluye la opción `[0]` para cancelar y regresar inmediatamente a tus resultados sin recargar nada.
-* 📺 **Selector de resoluciones inteligente:**
-  * **720p HD a 30fps:** El equilibrio perfecto para pantallas de portátiles y bajo consumo de CPU.
-  * **1080p Full HD:** Forzando códec H.264 acelerado por GPU (con fallback suave a 720p si el video no dispone de H.264 para proteger tu CPU de códecs pesados como AV1 o VP9).
-  * **480p / 360p:** Para conexiones lentas o ahorro extremo de energía.
-  * **Solo Audio:** Ideal para podcasts, conferencias o música de fondo consumiendo apenas 25 MB de RAM.
-* ⬇️ **Descargas completas y reanudables:**
-  * **Reanudación automática:** Si se interrumpe la conexión, retoma la descarga en el mismo punto sin perder datos (`--continue`).
-  * **Selector de carpetas:** Permite guardar en tus carpetas del sistema, pendrives USB montados o rutas personalizadas.
-  * **Videos en MP4:** Compatibles con cualquier reproductor, TV o móvil (con miniatura incrustada).
-  * **Música en MP3:** Calidades a 320 kbps, 192 kbps o 128 kbps con carátula oficial y etiquetas ID3.
-  * **Soporte para Playlists:** Descarga listas completas en lote sin interrupciones.
-* 📜 **Historial local y reanudación automática:** Recuerda tus últimos videos vistos (`yt-cli -H` o `:h`) y retoma la reproducción exactamente en el segundo donde lo dejaste (`--save-position-on-quit`). Totalmente privado, local y configurable.
-* 🍪 **Soporte de cookies de navegador:** Supera restricciones de edad o avisos de bot pasando cookies de Brave, Chrome, Firefox o Edge (`-c brave` / desplegable en GUI).
-* 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz moderna y ligera sin instalaciones complejas, con tema oscuro/claro, descargas interactivas, barra de progreso y reproductor de audio dedicado.
-* 🌐 **Soporte Multiplataforma:** No solo funciona con YouTube; puedes pegar enlaces directos de **TikTok, Twitter/X, Instagram Reels, Twitch, Reddit, SoundCloud y más de 1.000 sitios soportados**.
-* 🔔 **Notificaciones de escritorio:** Alerta nativa no bloqueante al finalizar descargas en segundo plano.
-* 🛡️ **Privacidad y Control:** Sin telemetría ni rastreadores. Historial local opcional y posibilidad de eliminarlo con un solo comando o clic.
+1. **Zero Configuration Out-of-the-Box:** `ytfzf` requires extensive shell scripting and manual configuration files to throttle formats on older hardware. `YT-CLI` comes pre-configured with H.264 filters and safe hardware acceleration (`auto-safe`) from the first second.
+2. **Unified Cross-Platform Suite:** `ytfzf` is limited to POSIX systems (Linux/macOS/BSD). `YT-CLI` provides both a pure Linux terminal CLI and a native, zero-install portable graphical application (`YT-CLI.exe`) for Windows 7, 8.1, 10, and 11.
+3. **Integrated Download & Playlist Manager:** While `ytfzf` focuses primarily on playback, `YT-CLI` includes a built-in download engine with destination folder selection (including mounted USB flash drives), automatic download resumption (`--continue`), MP3 audio extraction (320 kbps) with embedded cover art and ID3 tags, and MP4 video downloads.
+4. **Creator & Channel Search Syntax:** Direct search inside specific YouTube channels by typing `@channel` or `@channel query`.
+5. **UNIX Philosophy (No Terminal Graphics Hacks):** Tools that attempt to render thumbnails inside terminal emulators often suffer from distorted fonts, broken aspect ratios, and visual flickering during dynamic FZF filtering. Following the UNIX philosophy (*"Do one thing and do it well"*), `YT-CLI` keeps the Linux client purely text-based, instant, and distraction-free, reserving native visual cards for the Windows GUI.
 
 ---
 
-## 📋 Requisitos del Sistema
+## ✨ Key Features
 
-Requiere las siguientes herramientas estándar de Linux:
+* 🔍 **Ultra-Fast Interactive Search:** Filter videos in real time by title, duration, and uploader using `fzf`.
+* 🎶 **Queue & Multi-Selection:** Mark multiple videos or songs with `Tab` in `fzf` to stream sequentially in MPV (`>` next / `<` prev) or download them in batch.
+* 📋 **Smart Clipboard Detection:** If you copy a YouTube, TikTok, or Twitter/X link before launching `yt-cli`, it detects it and offers to open or download it immediately.
+* 🔄 **Persistent Results & Safe Navigation:** When a video finishes (or you press `q`), the search list **reappears instantly**. If you select a video by mistake, option `[0]` lets you return to your results with zero delay.
+* 📺 **Smart Resolution Selector:**
+  * **720p HD at 30fps:** Optimal balance for laptop displays and low CPU usage (Default).
+  * **1080p Full HD:** GPU-accelerated H.264 (with automatic fallback to 720p if H.264 is unavailable).
+  * **480p / 360p:** For slow connections or extreme power saving.
+  * **Audio Only:** Ideal for podcasts, tutorials, or background music (~25 MB RAM).
+* ⬇️ **Resumable Downloads:**
+  * **Automatic Resumption:** Network drops automatically resume where they left off (`--continue`).
+  * **Folder Selector:** Save directly to system folders, external USB flash drives, or custom paths.
+  * **MP4 Videos:** Universally compatible with mobile devices and smart TVs.
+  * **MP3 Audio:** 320 kbps, 192 kbps, or 128 kbps with embedded thumbnail and metadata.
+  * **Playlist Support:** Download full YouTube playlists in batch.
+* 📜 **Local History & Playback Resume:** Remembers watched videos (`yt-cli -H` or `:h`) and resumes playback at the exact second you left off (`--save-position-on-quit`). 100% private and stored locally.
+* 🍪 **Browser Cookie Support:** Bypass age restrictions and bot check gates by passing session cookies from Brave, Chrome, Firefox, or Edge (`-c brave` / dropdown in GUI).
+* 🌐 **Bilingual System (Spanish & English):** Native internationalization with automatic OS language detection, runtime switcher (`:lang`), and CLI flag (`--lang`).
+* 🪟 **Portable Windows GUI:** Standalone zero-install executable for Windows 7 SP1, 8.1, 10, and 11 with dark/light themes, progress bars, and dedicated audio mode.
+* 🔔 **Desktop Notifications:** Native non-blocking desktop notifications upon download completion.
+
+---
+
+## 📋 System Requirements
+
+Requires standard Linux utilities:
 * `bash` (v4.0+)
-* `yt-dlp` (Motor de extracción multimedia)
-* `fzf` (Buscador interactivo en terminal)
-* `mpv` (Reproductor de video y audio)
-* `ffmpeg` (Para empaquetado y conversión a MP3)
+* `yt-dlp` (Multimedia extraction engine)
+* `fzf` (Interactive terminal search engine)
+* `mpv` (High-performance media player)
+* `ffmpeg` (Audio conversion and packaging)
 
-### Instalación de dependencias:
+### Dependency Installation:
 
 * **Debian / Ubuntu / antiX / Linux Mint:**
   ```bash
@@ -88,11 +87,11 @@ Requiere las siguientes herramientas estándar de Linux:
   ```
 
 > [!TIP]
-> En distribuciones como Debian, Ubuntu LTS o Linux Mint, la versión de `yt-dlp` en los repositorios de `apt` puede estar desactualizada respecto a los cambios frecuentes de la API de YouTube. Si experimentas problemas de extracción, se recomienda instalar `yt-dlp` vía `pipx` o descargar su binario oficial:
+> On distributions like Debian, Ubuntu LTS, or Linux Mint, the `yt-dlp` version in `apt` repositories may be outdated compared to frequent YouTube API updates. If you experience extraction errors, install `yt-dlp` via `pipx` or use its official binary:
 > ```bash
-> # Opción recomendada vía pipx:
+> # Recommended via pipx:
 > sudo apt install pipx && pipx install yt-dlp
-> # O descarga directa del binario oficial:
+> # Or standalone official binary:
 > sudo wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp
 > ```
 
@@ -107,161 +106,171 @@ Requiere las siguientes herramientas estándar de Linux:
 
 ---
 
-## 🚀 Instalación Rápida
+## 🚀 Quick Installation on Linux
 
-1. Clona el repositorio:
+1. Clone the repository:
    ```bash
    git clone https://github.com/KennyWaddell/yt-cli.git
    cd yt-cli
    ```
 
-2. Ejecuta el instalador:
+2. Run the installer:
    ```bash
    chmod +x install.sh
    ./install.sh
    ```
 
-El instalador respetará tu entorno en todo momento:
-1. Copiará el ejecutable a `~/.local/bin/yt-cli`.
-2. Registrará el acceso directo con su icono oficial en el menú de aplicaciones (`~/.local/share/applications/yt-cli.desktop`).
-3. Te preguntará respetuosamente si deseas un icono en el Escritorio (sin crearlo a la fuerza).
-4. Configurará el directorio aislado en `~/.config/yt-cli/` sin tocar ni sobreescribir tus dotfiles globales de `~/.config/yt-dlp/`.
+The installer respects your system configuration:
+1. Installs the binary to `~/.local/bin/yt-cli`.
+2. Installs language packs to `~/.local/share/yt-cli/lang/`.
+3. Registers the application menu entry with official icon (`~/.local/share/applications/yt-cli.desktop`).
+4. Asks before creating any desktop shortcuts (never creates them forcefully).
+5. Uses an isolated configuration folder at `~/.config/yt-cli/` without modifying global `~/.config/yt-dlp/` dotfiles.
 
 ---
 
-## 💻 Modo de Uso
+## 💻 Usage
 
-### 1. Interfaz interactiva completa (Recomendado)
-Escribe en cualquier terminal:
+### 1. Interactive Console (Recommended)
+Run in any terminal:
 ```bash
 yt-cli
 ```
-*(O dale doble clic al icono **YT-CLI** en tu Escritorio).*
+1. Type keywords or paste a link.
+2. Navigate with arrow keys and press `Enter` (or `Tab` to select multiple).
+3. Choose your playback or download quality.
 
-1. Escribe tu búsqueda o pega cualquier enlace.
-2. Selecciona con las flechas y presiona `Enter`.
-3. Elige la calidad de reproducción o descarga en el menú rápido.
-
-### 2. Búsqueda directa o filtrado por canal
+### 2. Direct Search or Channel Filtering
 ```bash
-# Búsqueda general:
-yt-cli "noticias de tecnologia"
+# General search:
+yt-cli "linux kernel news"
 
-# Ver videos recientes de un canal específico:
-yt-cli "@midudev"
+# View recent videos from a channel:
+yt-cli "@ThePrimeTimeagen"
 
-# Buscar un tema dentro de un canal específico:
-yt-cli "@midudev rust"
+# Search inside a specific channel:
+yt-cli "@ThePrimeTimeagen neovim"
 ```
 
-### 3. Modo Podcast / Solo Audio
+### 3. Podcast / Audio-Only Mode
 ```bash
-yt-cli -a "musica lofi hip hop"
+yt-cli -a "lofi hip hop radio"
 ```
 
-### 4. Descarga directa de enlaces
+### 4. Direct Link Downloads
 ```bash
-# Descargar video en MP4 (720p H.264):
+# Download video in MP4 (720p H.264):
 yt-cli -d "https://www.youtube.com/watch?v=..."
 
-# Descargar canción en MP3 (320 kbps):
+# Download song in MP3 (320 kbps):
 yt-cli -m "https://www.youtube.com/watch?v=..."
 
-# Funciona con enlaces de TikTok, X (Twitter), etc.:
-yt-cli -d "https://www.tiktok.com/@usuario/video/..."
+# Supports TikTok, Twitter/X, Reels, etc.:
+yt-cli -d "https://www.tiktok.com/@user/video/..."
+```
+
+### 5. Switching Languages
+```bash
+# Set language via command line:
+yt-cli --lang en
+yt-cli --lang es
+
+# Or inside the interactive console, type:
+:lang en
+:lang es
 ```
 
 ---
 
-## 🪟 Uso en Windows (Versión Portable Standalone)
+## 🪟 Windows Portable Standalone Usage
 
-YT-CLI incluye una versión oficial con interfaz gráfica moderna y ligera para **Windows 7 SP1, 8.1, 10 y 11 (64-bit)**. No requiere instalar Python, ni configurar dependencias, ni tocar el `PATH` del sistema.
+YT-CLI provides an official, native standalone package for **Windows 7 SP1, 8.1, 10, and 11 (64-bit)**. It does not require installing Python, configuring dependencies, or modifying system `PATH`.
 
-### Pasos rápidos:
-1. Ve a la sección de [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) y descarga **`YT-CLI-Windows-Portable.zip`**.
-2. Descomprime el archivo `.zip` en la carpeta que prefieras.
-3. Haz doble clic en **`YT-CLI.exe`** para iniciar la aplicación de inmediato.
-4. *(Opcional)*: Haz clic derecho en `YT-CLI.exe` -> *Enviar a* -> *Escritorio (crear acceso directo)* para tenerlo a mano con su icono oficial.
+### Quick Steps:
+1. Go to [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) and download **`YT-CLI-Windows-Portable.zip`**.
+2. Extract the `.zip` archive to any folder.
+3. Double-click **`YT-CLI.exe`** to launch immediately.
+4. *(Optional)* Right-click `YT-CLI.exe` -> *Send to* -> *Desktop (create shortcut)*.
 
 ---
 
-## ⌨️ Atajos de Teclado en MPV
+## ⌨️ MPV Player Shortcuts
 
-| Tecla | Acción |
+| Key | Action |
 | :--- | :--- |
-| `q` | Cerrar el video y volver instantáneamente a la lista de búsqueda |
-| `Espacio` | Pausar / Reanudar |
-| `f` | Alternar pantalla completa |
-| `9` / `0` | Bajar / Subir volumen |
-| `←` / `→` | Retroceder / Avanzar 5 segundos |
-| `>` / `<` | Siguiente / Anterior en cola de reproducción |
-| `i` | Mostrar resolución actual, fps y códec en pantalla |
-| `Shift + i` | Mostrar panel técnico completo (GPU VA-API/DXVA2, dropped frames, caché) |
+| `q` | Close video and return instantly to search results |
+| `Space` | Pause / Resume |
+| `f` | Toggle Fullscreen |
+| `9` / `0` | Decrease / Increase Volume |
+| `←` / `→` | Seek backward / forward 5 seconds |
+| `>` / `<` | Next / Previous video in playback queue |
+| `i` | Show resolution, fps, and active codec on-screen |
+| `Shift + i` | Full technical statistics (GPU acceleration, dropped frames, cache) |
 
 ---
 
-## ❓ Preguntas Frecuentes (FAQ)
+## ❓ Frequently Asked Questions (FAQ)
 
 <details>
-<summary><b>1. ¿Por qué no usar simplemente el navegador web con uBlock Origin?</b></summary>
+<summary><b>1. Why not just use a web browser with uBlock Origin?</b></summary>
 <br>
-Los bloqueadores de publicidad son excelentes, pero no eliminan el motor Chromium/Gecko: el navegador sigue teniendo que analizar y ejecutar megabytes de código JavaScript pesado, renderizar el árbol DOM, procesar hojas de estilo complejas y gestionar decenas de hilos de renderizado. En una máquina modesta (2 a 4 GB de RAM, 2 núcleos), esto se traduce en consumos superiores a 1 GB de memoria RAM y ventiladores al máximo. <b>YT-CLI + MPV</b> reproduce el flujo multimedia puro por hardware sin capas web intermedias, consumiendo apenas ~75 MB de RAM.
+Ad blockers are fantastic, but they do not eliminate the underlying Chromium or Gecko browser engine. The browser still has to parse megabytes of complex JavaScript, compute layout reflows on the DOM tree, and manage dozens of multi-process tabs. On budget machines (2 to 4 GB RAM, dual-core CPU), this causes memory usage exceeding 1 GB and heavy CPU throttling. <b>YT-CLI + MPV</b> streams raw hardware-decoded multimedia without browser bloat, using only ~75 MB of RAM.
 </details>
 
 <details>
-<summary><b>2. ¿Por qué YT-CLI no incluye previsualización de miniaturas en la terminal de Linux?</b></summary>
+<summary><b>2. Why doesn't YT-CLI include thumbnail preview in Linux terminal?</b></summary>
 <br>
-Siguiendo la filosofía UNIX (<i>"Haz una sola cosa y hazla bien"</i>) y la estabilidad técnica: los emuladores de terminal estándar (como <code>xfce4-terminal</code>, GNOME Terminal o Alacritty sin parches) manejan gráficos mediante caracteres de bloque (Unicode) o protocolos como Kitty/Sixel de forma dispar, lo que provoca desalineación vertical, parpadeos, deformación de proporciones de aspecto y líneas fantasma al filtrar dinámicamente con FZF. Para una experiencia visual con tarjetas y miniaturas, YT-CLI ofrece su interfaz gráfica nativa en Windows; mientras que en Linux se prioriza una consola de texto limpia, instantánea, libre de fallos y 100% usable incluso en servidores remotos o TTY puras.
+Adhering to the UNIX philosophy (<i>"Do one thing and do it well"</i>) and technical reliability: standard Linux terminal emulators (such as <code>xfce4-terminal</code>, GNOME Terminal, or unpatched Alacritty) display Unicode block characters or protocols like Kitty/Sixel inconsistently, resulting in vertical stretching, line wrapping artifacts, and visual flickering during dynamic FZF searches. For visual cards and rich thumbnails, YT-CLI provides a native Windows GUI; while the Linux client is engineered to be rock-solid, lightning-fast, and 100% usable even over SSH or pure TTYs.
 </details>
 
 <details>
-<summary><b>3. ¿Funciona en equipos antiguos (Intel Celeron, Atom, ThinkPads clásicas con 2 GB RAM)?</b></summary>
+<summary><b>3. Does it run on legacy hardware (Intel Celeron, Atom, ThinkPads with 2 GB RAM)?</b></summary>
 <br>
-Sí, absolutamente. YT-CLI fue diseñado específicamente pensando en computadoras de bajos recursos y portátiles antiguas. Al forzar el perfil H.264 (AVC) a un máximo de 30 fps con <code>--hwdec=auto-safe</code>, evita que la CPU intente decodificar códecs modernos altamente exigentes como VP9 o AV1 por software. Además, dispone de modos de resolución ligera a 480p y 360p, y un modo podcast (solo audio) que apenas consume ~25 MB de memoria RAM.
+Yes, absolutely. YT-CLI was designed specifically for low-resource computers. By defaulting to H.264 (AVC) video capped at 30 fps with <code>--hwdec=auto-safe</code>, it prevents the CPU from melting under modern VP9 or AV1 software decoding. It also includes 480p and 360p modes and a dedicated audio mode consuming only ~25 MB of RAM.
 </details>
 
 <details>
-<summary><b>4. ¿Cómo cambio el idioma de la aplicación (Español / Inglés)?</b></summary>
+<summary><b>4. How do I switch interface language between Spanish and English?</b></summary>
 <br>
-YT-CLI detecta automáticamente el idioma de tu sistema operativo (variable <code>$LANG</code>), pero puedes cambiarlo manualmente en cualquier momento:
+YT-CLI automatically detects your operating system language (from <code>$LANG</code>), but you can switch anytime:
 <ul>
-  <li>Desde la consola interactiva: escribe el comando <code>:lang</code> (o directamente <code>:lang en</code> / <code>:lang es</code>).</li>
-  <li>Desde la terminal al iniciar: ejecuta <code>yt-cli --lang en</code> o <code>yt-cli --lang es</code>.</li>
+  <li>Inside the interactive prompt: type <code>:lang</code> (or <code>:lang en</code> / <code>:lang es</code>).</li>
+  <li>From the terminal on launch: run <code>yt-cli --lang en</code> or <code>yt-cli --lang es</code>.</li>
 </ul>
-Tu preferencia quedará guardada de forma persistente en <code>~/.config/yt-cli/config</code>.
+Your choice is persisted in <code>~/.config/yt-cli/config</code>.
 </details>
 
 <details>
-<summary><b>5. ¿Cómo supero restricciones de edad o avisos de bot en YouTube?</b></summary>
+<summary><b>5. How do I bypass age restrictions or bot detection gates?</b></summary>
 <br>
-Puedes pasar las cookies de sesión de tu navegador habitual para que YouTube reconozca tu sesión iniciada sin guardar contraseñas ni comprometer tu seguridad:
+You can pass session cookies from your browser so YouTube recognizes your logged-in session securely:
 <ul>
-  <li>En la consola interactiva: escribe el comando <code>:c</code> e introduce tu navegador (ej: <code>brave</code> o <code>firefox</code>).</li>
-  <li>Al arrancar desde terminal: ejecuta <code>yt-cli -c brave "término de búsqueda"</code> o <code>yt-cli -c /ruta/a/cookies.txt</code>.</li>
+  <li>In interactive prompt: type <code>:c</code> and enter your browser name (e.g. <code>brave</code> or <code>firefox</code>).</li>
+  <li>From terminal launch: run <code>yt-cli -c brave "search keywords"</code> or <code>yt-cli -c /path/to/cookies.txt</code>.</li>
 </ul>
 </details>
 
 <details>
-<summary><b>6. ¿Qué hago si YouTube cambia su API y los videos dejan de cargar?</b></summary>
+<summary><b>6. What should I do if YouTube updates its API and videos stop loading?</b></summary>
 <br>
-YouTube actualiza frecuentemente sus firmas internas. Cuando esto ocurra, no necesitas reinstalar YT-CLI; únicamente debes actualizar el motor <code>yt-dlp</code> a su versión más reciente:
-<pre><code># Si instalaste con pipx:
+YouTube updates its cipher signatures periodically. You never need to reinstall YT-CLI; you only need to update the <code>yt-dlp</code> backend:
+<pre><code># If installed via pipx:
 pipx upgrade yt-dlp
 
-# Si descargaste el binario oficial independiente:
+# If using standalone official binary:
 sudo yt-dlp -U
 </code></pre>
 </details>
 
 <details>
-<summary><b>7. ¿Cómo puedo contribuir traduciendo YT-CLI a mi idioma?</b></summary>
+<summary><b>7. How can I contribute a translation to my language?</b></summary>
 <br>
-¡Las contribuciones comunitarias son bienvenidas! El sistema de internacionalización de YT-CLI es modular y plano:
+Community translations are warmly welcomed! The localization system is modular and flat:
 <ol>
-  <li>Ve a la carpeta <code>lang/</code> del repositorio.</li>
-  <li>Haz una copia del archivo base <code>lang/en.sh</code> (por ejemplo, <code>lang/pt.sh</code> para portugués, <code>lang/fr.sh</code> para francés, etc.).</li>
-  <li>Traduce las cadenas de texto entre comillas respetando los nombres de variables.</li>
-  <li>Abre un <b>Pull Request</b> en GitHub para incluirlo oficialmente en la próxima versión.</li>
+  <li>Open the <code>lang/</code> directory in the repository.</li>
+  <li>Copy the base template <code>lang/en.sh</code> (e.g., <code>lang/pt.sh</code> for Portuguese, <code>lang/de.sh</code> for German, etc.).</li>
+  <li>Translate the strings inside quotes while keeping the variable names intact.</li>
+  <li>Submit a <b>Pull Request</b> on GitHub to have it included in the next release!</li>
 </ol>
 </details>
 
@@ -269,34 +278,34 @@ sudo yt-dlp -U
 
 ## 🗺️ Roadmap
 
-- [x] Soporte para reanudación de descargas interrumpidas (`-c` / `--continue`).
-- [x] Selector interactivo de carpetas de destino (disco local, pendrives USB y rutas personalizadas).
-- [x] Cola de reproducción múltiple en FZF (marcar con tecla `Tab`).
-- [x] Detección mágica del portapapeles y notificaciones de escritorio.
-- [x] Historial local con reanudación automática de posición (`--save-position-on-quit` y `--watch-later-options=start`).
-- [x] Soporte para cookies de sesión de navegadores (Brave, Firefox, Chrome, Edge).
-- [x] Versión multiplataforma con GUI nativa minimalista para **Windows 7 / 8.1 / 10 / 11**.
-- [x] Compilación standalone de `YT-CLI.exe` con PyInstaller y empaquetado portable para la sección de Releases.
-- [x] Aislamiento de dotfiles (`~/.config/yt-cli`) y respeto al Escritorio (v1.2).
-- [x] Aceleración agnóstica por hardware (`--hwdec=auto-safe`: Intel VA-API, AMD Mesa, Nvidia NVDEC) y desbloqueo de 720p/1080p (v1.2).
-- [x] Soporte para portapapeles en Wayland (`wl-paste`) y X11 (`xclip` / `xsel`) (v1.2).
-- [x] Filtrado y búsqueda directa en canales específicos (`@canal` o `@canal término`) (v1.2).
-- [x] Internacionalización (i18n): Sistema bilingüe modular en español e inglés (`lang/es.sh`, `lang/en.sh`, `--lang`, `:lang`) (v1.3).
-- [ ] Actualizador integrado de `yt-dlp` desde comando CLI y botón en GUI (previsto para v1.3).
-- [ ] Presets y plantillas de configuración personalizadas (previsto para v1.3).
-- [ ] Soporte opcional para SponsorBlock (previsto para v1.3).
+- [x] Resumable download support (`-c` / `--continue`).
+- [x] Interactive destination folder selector (local storage, mounted USB drives, custom paths).
+- [x] Multi-selection queue in FZF (`Tab` key).
+- [x] Smart clipboard detection and desktop notifications.
+- [x] Local history with playback position resumption (`--save-position-on-quit` & `--watch-later-options=start`).
+- [x] Browser session cookies support (Brave, Firefox, Chrome, Edge).
+- [x] Cross-platform native standalone GUI for **Windows 7 / 8.1 / 10 / 11**.
+- [x] Standalone PyInstaller build script for portable `YT-CLI.exe`.
+- [x] Isolated dotfiles (`~/.config/yt-cli`) and desktop privacy etiquette (v1.2).
+- [x] Hardware-agnostic GPU acceleration (`--hwdec=auto-safe`: Intel VA-API, AMD Mesa, Nvidia NVDEC) with 720p/1080p unlock (v1.2).
+- [x] Wayland (`wl-paste`) and X11 (`xclip` / `xsel`) clipboard detection (v1.2).
+- [x] Creator & channel search filtering (`@channel` or `@channel query`) (v1.2).
+- [x] Modular bilingual internationalization (Spanish & English in `lang/`, `--lang`, `:lang`) (v1.3).
+- [ ] Integrated `yt-dlp` self-updater from CLI command and GUI button (v1.3).
+- [ ] Custom user configuration presets (v1.3).
+- [ ] Optional SponsorBlock integration (v1.3).
 
 ---
 
-## 📄 Licencia
+## 📄 License
 
-Este proyecto se distribuye bajo la licencia **GNU General Public License v3.0 (GPLv3)**. Consulta el archivo [LICENSE](LICENSE) para más información.  
-El conocimiento y el software pertenecen a la comunidad.
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](LICENSE) file for details.  
+Knowledge and software belong to the community.
 
 ---
 
-## 👤 Autor
+## 👤 Author
 
-Desarrollado y mantenido por **Kenny Waddell**  
+Developed and maintained by **Kenny Waddell**  
 * GitHub: [@KennyWaddell](https://github.com/KennyWaddell)  
-* *Desarrollado en colaboración y optimización con Antigravity (Google DeepMind).*
+* *Developed in collaboration and optimization with Antigravity (Google DeepMind).*
