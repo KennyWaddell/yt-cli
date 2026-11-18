@@ -21,7 +21,8 @@ URL_YTDLP = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.ex
 URL_FFMPEG_ZIP = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 # Compilación universal de mpv compatible con Windows 7 SP1, 8.1, 10 y 11
 # (v0.37.0 sin dependencia estricta de AdjustWindowRectExForDpi de Windows 10)
-URL_MPV_7Z = "https://sourceforge.net/projects/mpv-player-windows/files/64bit/mpv-x86_64-20231126-git-6898d57.7z/download"
+URL_MPV_7Z = "https://downloads.sourceforge.net/project/mpv-player-windows/64bit/mpv-x86_64-20231126-git-6898d57.7z"
+URL_MPV_FALLBACK = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261111/mpv-x86_64-20261111-git-bcde6b93cc.7z"
 URL_VULKAN_ZIP = "https://sdk.lunarg.com/sdk/download/1.3.296.0/windows/VulkanRT-1.3.296.0-Components.zip"
 URL_7ZR = "https://www.7-zip.org/a/7zr.exe"
 
@@ -125,6 +126,10 @@ def setup_mpv(force=False):
     os.makedirs(extract_dir, exist_ok=True)
 
     download_file(URL_MPV_7Z, archive_path, mpv_name)
+    if not os.path.isfile(archive_path) or os.path.getsize(archive_path) < 1024 * 1024:
+        print("  [AVISO] Archivo mpv de SourceForge incompleto, usando mirror oficial GitHub...")
+        download_file(URL_MPV_FALLBACK, archive_path, "mpv (mirror GitHub)")
+
     extractor = find_7z_command()
 
     print("  -> Extrayendo mpv.exe y librerías...")
@@ -134,6 +139,15 @@ def setup_mpv(force=False):
         stderr=subprocess.PIPE,
         text=True,
     )
+    if res.returncode != 0:
+        print(f"  [AVISO] Falló extracción inicial ({res.stderr.strip()}). Reintentando con mirror alternativo...")
+        download_file(URL_MPV_FALLBACK, archive_path, "mpv (mirror GitHub alternativo)")
+        res = subprocess.run(
+            [extractor, "x", archive_path, f"-o{extract_dir}", "-y"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
     if res.returncode != 0:
         raise RuntimeError(f"Error al extraer {mpv_name}: {res.stderr}")
 
