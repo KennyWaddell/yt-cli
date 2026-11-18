@@ -85,9 +85,12 @@ MSG_DL_MUSIC_NOTIFY_MSG="Canción guardada con metadatos en"
 # --- Historial ---
 MSG_HIST_EMPTY="El historial está vacío."
 MSG_HIST_CLEARED="✔ Historial borrado correctamente."
-MSG_HIST_CLEAR_OPTION="🗑️  Borrar todo el historial"
+MSG_HIST_CLEAR_OPTION="Borrar todo el historial"
 MSG_HIST_PROMPT="📜 Historial (máx. 50) > "
-MSG_HIST_HEADER="[Enter] Ver vídeo/playlist o Borrar | [ESC] Volver"
+MSG_HIST_HEADER="[Enter] Seleccionar | [Ctrl+D / Supr] Borrar | [ESC] Volver"
+MSG_HIST_ITEM_DELETED="✔ Elemento eliminado del historial."
+MSG_ACTION_DELETE_ITEM="Borrar este elemento del historial"
+MSG_ACTION_HIST_PROMPT="Elige opción [1-7 | d para borrar | 0 para volver] (Enter para 720p): "
 
 # --- Cookies ---
 MSG_COOKIE_PROMPT="Introduce navegador o ruta a cookies (ej: brave, firefox, cookies.txt): "

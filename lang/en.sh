@@ -85,9 +85,12 @@ MSG_DL_MUSIC_NOTIFY_MSG="Song saved with metadata to"
 # --- History ---
 MSG_HIST_EMPTY="History is empty."
 MSG_HIST_CLEARED="✔ History cleared successfully."
-MSG_HIST_CLEAR_OPTION="🗑️  Clear entire history"
+MSG_HIST_CLEAR_OPTION="Clear entire history"
 MSG_HIST_PROMPT="📜 History (max. 50) > "
-MSG_HIST_HEADER="[Enter] Play video/playlist or Delete | [ESC] Go back"
+MSG_HIST_HEADER="[Enter] Select | [Ctrl+D / Del] Delete | [ESC] Go back"
+MSG_HIST_ITEM_DELETED="✔ Item deleted from history."
+MSG_ACTION_DELETE_ITEM="Delete this item from history"
+MSG_ACTION_HIST_PROMPT="Choose option [1-7 | d to delete | 0 to go back] (Enter for 720p): "
 
 # --- Cookies ---
 MSG_COOKIE_PROMPT="Enter browser name or path to cookies.txt (e.g. brave, firefox, cookies.txt): "

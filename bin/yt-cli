@@ -174,16 +174,38 @@ if data.get('enabled', True):
 EOF
 }
 
+# Borrar un elemento específico del historial
+delete_history_item() {
+    local vid_id="$1"
+    python3 - "$HISTORY_FILE" "$vid_id" << 'EOF' 2>/dev/null || true
+import sys, json, os
+path = os.path.expanduser(sys.argv[1])
+vid_id = sys.argv[2]
+if os.path.isfile(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        data['history'] = [x for x in data.get('history', []) if x.get('id') != vid_id]
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+EOF
+    echo -e "${C_GREEN}${MSG_HIST_ITEM_DELETED:-✔ Elemento eliminado del historial.}${C_RESET}"
+}
+
 # Ver y seleccionar del historial
 show_history_menu() {
-    if [ ! -f "$HISTORY_FILE" ]; then
-        echo -e "${C_YELLOW}${MSG_HIST_EMPTY}${C_RESET}"
-        sleep 1.5
-        return
-    fi
+    printf "\r\033[2K"
+    while true; do
+        if [ ! -f "$HISTORY_FILE" ]; then
+            echo -e "${C_YELLOW}${MSG_HIST_EMPTY}${C_RESET}"
+            sleep 1.5
+            return
+        fi
 
-    local hist_list
-    hist_list=$(python3 - "$HISTORY_FILE" << 'EOF' 2>/dev/null
+        local hist_list
+        hist_list=$(python3 - "$HISTORY_FILE" << 'EOF' 2>/dev/null
 import sys, json, os
 path = os.path.expanduser(sys.argv[1])
 if os.path.isfile(path):
@@ -197,49 +219,106 @@ if os.path.isfile(path):
 EOF
 )
 
-    if [ -z "$hist_list" ]; then
-        echo -e "${C_YELLOW}${MSG_HIST_EMPTY}${C_RESET}"
-        sleep 1.5
-        return
-    fi
+        if [ -z "$hist_list" ]; then
+            echo -e "${C_YELLOW}${MSG_HIST_EMPTY}${C_RESET}"
+            sleep 1.5
+            return
+        fi
 
-    hist_list="${hist_list}"$'\n'"${MSG_HIST_CLEAR_OPTION}	__CLEAR_HISTORY__"
+        hist_list="${hist_list}"$'\n'"${MSG_HIST_CLEAR_OPTION}	__CLEAR_HISTORY__"
 
-    local selection
-    selection=$(echo "$hist_list" | "$BIN_FZF" \
-        --delimiter='\t' \
-        --with-nth=1 \
-        --prompt="${MSG_HIST_PROMPT}" \
-        --header="${MSG_HIST_HEADER}" \
-        --height=60% \
-        --reverse \
-        --border) || true
+        local fzf_output
+        fzf_output=$(echo "$hist_list" | "$BIN_FZF" \
+            --delimiter='\t' \
+            --with-nth=1 \
+            --prompt="${MSG_HIST_PROMPT}" \
+            --header="${MSG_HIST_HEADER}" \
+            --expect=ctrl-d,del \
+            --height=60% \
+            --reverse \
+            --border) || true
 
-    if [ -n "$selection" ]; then
+        [ -z "$fzf_output" ] && return
+
+        local key
+        local selection
+        key=$(echo "$fzf_output" | sed -n '1p')
+        selection=$(echo "$fzf_output" | sed -n '2p')
+
+        [ -z "$selection" ] && return
+
         local id
         id=$(echo "$selection" | awk -F'\t' '{print $2}')
+        [ -z "$id" ] && return
+
         if [ "$id" = "__CLEAR_HISTORY__" ]; then
             clear_history
             sleep 1.5
             return
-        elif [ -n "$id" ]; then
-            local url="$id"
-            if [[ ! "$id" =~ ^https?:// ]]; then
-                url="https://www.youtube.com/watch?v=${id}"
-            fi
-            choose_action "1"
-            case "$SELECTED_ACTION" in
-                play_720)   play_videos "720" "$url" ;;
-                play_1080)  play_videos "1080" "$url" ;;
-                play_480)   play_videos "480" "$url" ;;
-                play_audio) play_videos "audio" "$url" ;;
-                down_720)   download_videos "720" "$url" ;;
-                down_1080)  download_videos "1080" "$url" ;;
-                down_mp3)   download_music "$url" ;;
-                back|cancel) return ;;
-            esac
         fi
-    fi
+
+        # Si el usuario pulsó Ctrl+D o Supr/Del directamente en FZF
+        if [[ "$key" == "ctrl-d" || "$key" == "del" ]]; then
+            delete_history_item "$id"
+            sleep 0.8
+            continue
+        fi
+
+        local clean_title
+        clean_title=$(echo "$selection" | awk -F'\t' '{print $1}' | sed -E 's/ \[[0-9]{2}\/[0-9]{2}\/[0-9]{4} [0-9]{2}:[0-9]{2}\]$//')
+
+        local url="$id"
+        if [[ ! "$id" =~ ^https?:// ]]; then
+            url="https://www.youtube.com/watch?v=${id}"
+        fi
+
+        choose_action "1" "history"
+        case "$SELECTED_ACTION" in
+            play_720)
+                record_history "$clean_title" "$id"
+                play_videos "720" "$url"
+                return
+                ;;
+            play_1080)
+                record_history "$clean_title" "$id"
+                play_videos "1080" "$url"
+                return
+                ;;
+            play_480)
+                record_history "$clean_title" "$id"
+                play_videos "480" "$url"
+                return
+                ;;
+            play_audio)
+                record_history "$clean_title" "$id"
+                play_videos "audio" "$url"
+                return
+                ;;
+            down_720)
+                record_history "$clean_title" "$id"
+                download_videos "720" "$url"
+                return
+                ;;
+            down_1080)
+                record_history "$clean_title" "$id"
+                download_videos "1080" "$url"
+                return
+                ;;
+            down_mp3)
+                record_history "$clean_title" "$id"
+                download_music "$url"
+                return
+                ;;
+            delete)
+                delete_history_item "$id"
+                sleep 0.8
+                continue
+                ;;
+            back|cancel)
+                continue
+                ;;
+        esac
+    done
 }
 
 # Borrar historial
@@ -366,6 +445,7 @@ SELECTED_ACTION="play_720"
 # 5. Menú interactivo unificado (Reproducir / Descargar / Volver)
 choose_action() {
     local count="${1:-1}"
+    local is_history="${2:-false}"
     local label_items="${MSG_ACTION_SINGLE}"
     [ "$count" -gt 1 ] && label_items="${count} ${MSG_ACTION_MULTI}"
 
@@ -382,9 +462,16 @@ choose_action() {
     echo -e "  ${C_BOLD}[7]${C_RESET} ${MSG_ACTION_7}"
     echo ""
     echo -e "  ${C_BOLD}${MSG_ACTION_NAV_HEADER}${C_RESET}"
+    if [ "$is_history" = "history" ]; then
+        echo -e "  ${C_BOLD}[d]${C_RESET} ${MSG_ACTION_DELETE_ITEM:-Borrar este elemento del historial}"
+    fi
     echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0}"
     echo ""
-    echo -ne "${C_YELLOW}${MSG_ACTION_PROMPT}${C_RESET}"
+    if [ "$is_history" = "history" ]; then
+        echo -ne "${C_YELLOW}${MSG_ACTION_HIST_PROMPT:-Elige opción [1-7 | d para borrar | 0 para volver] (Enter para 720p): }${C_RESET}"
+    else
+        echo -ne "${C_YELLOW}${MSG_ACTION_PROMPT}${C_RESET}"
+    fi
 
     local user_opt=""
     if [ -t 0 ]; then
@@ -403,6 +490,13 @@ choose_action() {
         5) SELECTED_ACTION="down_720" ;;
         6) SELECTED_ACTION="down_1080" ;;
         7|[mM]) SELECTED_ACTION="down_mp3" ;;
+        [dD]|del|borrar|eliminar)
+            if [ "$is_history" = "history" ]; then
+                SELECTED_ACTION="delete"
+            else
+                SELECTED_ACTION="play_720"
+            fi
+            ;;
         0|[vV]|[bB]|[qQ]|cancel|cancelar|volver|atras) SELECTED_ACTION="back" ;;
         *) SELECTED_ACTION="play_720" ;;
     esac
