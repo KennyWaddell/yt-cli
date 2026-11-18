@@ -60,13 +60,16 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
   * **1080p Full HD:** Forzando códec H.264 acelerado por GPU (con fallback suave a 720p si el video no dispone de H.264 para proteger tu CPU de códecs pesados como AV1 o VP9).
   * **480p / 360p:** Para conexiones lentas o ahorro extremo de energía.
   * **Solo Audio:** Ideal para podcasts, conferencias o música de fondo consumiendo apenas 25 MB de RAM.
-* ⬇️ **Descargas completas y reanudables:**
+* ⬇️ **Descargas inteligentes y reanudables:**
+  * **División por capítulos (`--split-chapters` / `-s`):** Separa automáticamente álbumes completos, podcasts y cursos en pistas individuales sin re-codificar.
+  * **Formatos de audio avanzados:** Elige entre **M4A/AAC** u **Opus** nativos de YT (copia directa del stream original con carátula oficial y cero pérdida por compresión) o **MP3** tradicional (320k, 192k, 128k) y **FLAC**.
+  * **Historial de descargas seguras:** Registra los vídeos ya descargados (`--download-archive`), de modo que al bajar listas o canales enteros se salten al instante los archivos ya guardados sin gastar ancho de banda.
   * **Reanudación automática:** Si se interrumpe la conexión, retoma la descarga en el mismo punto sin perder datos (`--continue`).
   * **Selector de carpetas:** Permite guardar en tus carpetas del sistema, pendrives USB montados o rutas personalizadas.
   * **Videos en MP4:** Compatibles con cualquier reproductor, TV o móvil (con miniatura incrustada).
-  * **Música en MP3:** Calidades a 320 kbps, 192 kbps o 128 kbps con carátula oficial y etiquetas ID3.
   * **Soporte para Playlists:** Descarga listas completas en lote sin interrupciones.
-* 📜 **Historial local y reanudación automática:** Recuerda tus últimos videos vistos (`yt-cli -H` o `:h`) y retoma la reproducción exactamente en el segundo donde lo dejaste (`--save-position-on-quit`). Totalmente privado, local y configurable.
+* 🔄 **Actualizador integrado de yt-dlp:** Escribe `:u` o `:update` en el buscador interactivo (o ejecuta `yt-cli -u`) para actualizar `yt-dlp` a su versión más reciente cuando YouTube cambie sus algoritmos.
+* 📜 **Historial local y reanudación automática:** Recuerda tus últimos videos vistos (`yt-cli -H` o `:h`) con reordenamiento inteligente y retoma la reproducción exactamente en el segundo donde lo dejaste (`--save-position-on-quit`). Totalmente privado, local y configurable.
 * 🍪 **Soporte de cookies de navegador:** Supera restricciones de edad o avisos de bot pasando cookies de Brave, Chrome, Firefox o Edge (`-c brave` / desplegable en GUI).
 * 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz moderna y ligera sin instalaciones complejas, con tema oscuro/claro, descargas interactivas, barra de progreso y reproductor de audio dedicado.
 * 🌐 **Soporte Multiplataforma:** No solo funciona con YouTube; puedes pegar enlaces directos de **TikTok, Twitter/X, Instagram Reels, Twitch, Reddit, SoundCloud y más de 1.000 sitios soportados**.

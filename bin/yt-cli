@@ -641,47 +641,75 @@ download_videos() {
     if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
 }
 
-# 8. Descarga optimizada de música (MP3 / Reanudación / Playlists)
+# 8. Descarga optimizada de audio (MP3 / M4A / Opus / FLAC / Reanudación)
 download_music() {
     local targets=("$@")
 
-    echo -e "${C_CYAN}${MSG_DL_MUSIC_QUALITY_HEADER}${C_RESET}"
-    echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_MUSIC_Q1}"
-    echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_MUSIC_Q2}"
-    echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_MUSIC_Q3}"
+    echo -e "${C_CYAN}${MSG_DL_AUDIO_FORMAT_HEADER:-Selecciona formato de audio:}${C_RESET}"
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_AUDIO_F1:-MP3 (Compatibilidad universal USB/reproductores) ★ Predeterminado}"
+    echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_AUDIO_F2:-M4A / AAC (Nativo de YT • Con carátula oficial • Copia rápida)}"
+    echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_AUDIO_F3:-Opus (Nativo de YT • Máxima fidelidad acústica • Ligero)}"
+    echo -e "  ${C_BOLD}[4]${C_RESET} ${MSG_DL_AUDIO_F4:-FLAC (Audio sin pérdida / Lossless)}"
     echo ""
-    echo -ne "${C_YELLOW}${MSG_DL_MUSIC_Q_PROMPT}${C_RESET}"
+    echo -ne "${C_YELLOW}${MSG_DL_AUDIO_FORMAT_PROMPT:-Elige formato [1-4] (Enter para MP3): }${C_RESET}"
 
-    local user_opt=""
-    if [ -t 0 ]; then read -r user_opt || user_opt="1"; else read -r user_opt </dev/tty || user_opt="1"; fi
-    [ -z "$user_opt" ] && user_opt="1"
+    local format_opt=""
+    if [ -t 0 ]; then read -r format_opt || format_opt="1"; else read -r format_opt </dev/tty || format_opt="1"; fi
+    [ -z "$format_opt" ] && format_opt="1"
     echo ""
 
+    local audio_fmt="mp3"
     local bitrate="320"
-    case "$user_opt" in
-        2) bitrate="192" ;;
-        3) bitrate="128" ;;
-        *) bitrate="320" ;;
+    case "$format_opt" in
+        2) audio_fmt="m4a" ;;
+        3) audio_fmt="opus" ;;
+        4) audio_fmt="flac" ;;
+        *) audio_fmt="mp3" ;;
     esac
 
-    echo -ne "${C_CYAN}${MSG_DL_EMBED_COVER_PROMPT:-¿Incrustar carátula en los MP3? [S/n]: }${C_RESET}"
+    if [ "$audio_fmt" = "mp3" ]; then
+        echo -e "${C_CYAN}${MSG_DL_MUSIC_QUALITY_HEADER}${C_RESET}"
+        echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_MUSIC_Q1}"
+        echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_MUSIC_Q2}"
+        echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_MUSIC_Q3}"
+        echo ""
+        echo -ne "${C_YELLOW}${MSG_DL_MUSIC_Q_PROMPT}${C_RESET}"
+
+        local user_opt=""
+        if [ -t 0 ]; then read -r user_opt || user_opt="1"; else read -r user_opt </dev/tty || user_opt="1"; fi
+        [ -z "$user_opt" ] && user_opt="1"
+        echo ""
+
+        case "$user_opt" in
+            2) bitrate="192" ;;
+            3) bitrate="128" ;;
+            *) bitrate="320" ;;
+        esac
+    fi
+
+    echo -ne "${C_CYAN}${MSG_DL_EMBED_COVER_PROMPT:-¿Incrustar carátula oficial? [S/n]: }${C_RESET}"
     local user_cover=""
     if [ -t 0 ]; then read -r user_cover || user_cover="s"; else read -r user_cover </dev/tty || user_cover="s"; fi
     [ -z "$user_cover" ] && user_cover="s"
     echo ""
 
     local EXTRA_ARGS=()
-    if [[ "$user_cover" =~ ^[nN]$ ]]; then
-        EXTRA_ARGS=()
-    else
+    if [[ ! "$user_cover" =~ ^[nN]$ ]]; then
         EXTRA_ARGS+=("--embed-thumbnail")
+    fi
+
+    local AUDIO_YTDL_FLAGS=("--extract-audio" "--audio-format" "$audio_fmt")
+    if [ "$audio_fmt" = "mp3" ]; then
+        AUDIO_YTDL_FLAGS+=("--audio-quality" "${bitrate}k")
     fi
 
     local dest_dir
     dest_dir=$(choose_destination_folder "audio")
     mkdir -p "$dest_dir" 2>/dev/null || true
 
-    echo -e "${C_CYAN}${MSG_DL_MUSIC_START} (${bitrate} kbps)...${C_RESET}"
+    local info_label="${audio_fmt^^}"
+    [ "$audio_fmt" = "mp3" ] && info_label="MP3 (${bitrate} kbps)"
+    echo -e "${C_CYAN}${MSG_DL_MUSIC_START:-🎵 Descargando audio en} ${info_label}...${C_RESET}"
     echo -e "${C_GRAY}${MSG_DL_SAVING_IN} ${dest_dir}/${C_RESET}\n"
 
     local has_error=0
@@ -690,9 +718,7 @@ download_music() {
             ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
             -c \
             --download-archive "${ARCHIVE_FILE}" \
-            --extract-audio \
-            --audio-format mp3 \
-            --audio-quality "${bitrate}k" \
+            "${AUDIO_YTDL_FLAGS[@]}" \
             "${EXTRA_ARGS[@]}" \
             --embed-metadata \
             --no-warnings \
@@ -719,11 +745,12 @@ download_chapters() {
     local targets=("$@")
 
     echo -e "${C_CYAN}${MSG_DL_CHAPTERS_FORMAT_HEADER:-Selecciona formato para dividir por capítulos:}${C_RESET}"
-    echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_CHAPTERS_F1:-Audio MP3 (Pistas individuales con etiquetas) ★ Predeterminado}"
-    echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_CHAPTERS_F2:-Video 720p HD (Archivos MP4 por capítulo)}"
-    echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_CHAPTERS_F3:-Video 1080p Full HD (Archivos MP4 por capítulo)}"
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_CHAPTERS_F1:-Audio MP3 (320k con carátula) ★ Predeterminado}"
+    echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_CHAPTERS_F2:-Audio M4A (Nativo de YT • Copia directa rápida)}"
+    echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_CHAPTERS_F3:-Video 720p HD (Archivos MP4 por capítulo)}"
+    echo -e "  ${C_BOLD}[4]${C_RESET} ${MSG_DL_CHAPTERS_F4:-Video 1080p Full HD (Archivos MP4 por capítulo)}"
     echo ""
-    echo -ne "${C_YELLOW}${MSG_DL_CHAPTERS_PROMPT:-Elige formato [1-3] (Enter para MP3): }${C_RESET}"
+    echo -ne "${C_YELLOW}${MSG_DL_CHAPTERS_PROMPT:-Elige formato [1-4] (Enter para MP3): }${C_RESET}"
 
     local user_opt=""
     if [ -t 0 ]; then read -r user_opt || user_opt="1"; else read -r user_opt </dev/tty || user_opt="1"; fi
@@ -732,13 +759,14 @@ download_chapters() {
 
     local format_type="mp3"
     case "$user_opt" in
-        2) format_type="720" ;;
-        3) format_type="1080" ;;
+        2) format_type="m4a" ;;
+        3) format_type="720" ;;
+        4) format_type="1080" ;;
         *) format_type="mp3" ;;
     esac
 
     local dest_dir
-    if [ "$format_type" = "mp3" ]; then
+    if [ "$format_type" = "mp3" ] || [ "$format_type" = "m4a" ]; then
         dest_dir=$(choose_destination_folder "audio")
     else
         dest_dir=$(choose_destination_folder "video")
@@ -759,6 +787,22 @@ download_chapters() {
                 --extract-audio \
                 --audio-format mp3 \
                 --audio-quality 320k \
+                --embed-thumbnail \
+                --embed-metadata \
+                --no-warnings \
+                -o "chapter:${dest_dir}/%(title)s/%(section_number)02d - %(section_title)s.%(ext)s" \
+                -o "${dest_dir}/%(title)s.%(ext)s" \
+                "$t"; then
+                has_error=1
+            fi
+        elif [ "$format_type" = "m4a" ]; then
+            if ! "$BIN_YTDLP" \
+                ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                -c \
+                --download-archive "${ARCHIVE_FILE}" \
+                --split-chapters \
+                --extract-audio \
+                --audio-format m4a \
                 --embed-thumbnail \
                 --embed-metadata \
                 --no-warnings \
@@ -939,7 +983,7 @@ show_banner() {
     echo -e "${C_CYAN}    ╚██╔╝     ██║  ╚════╝██║     ██║     ██║${C_RESET}"
     echo -e "${C_CYAN}     ██║      ██║        ╚██████╗███████╗██║${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}"
-    echo -e "  ${C_BOLD}${MSG_BANNER_CREDITS:-YT-CLI v1.3 • Creado por Kenny Waddell (@KennyWaddell)}${C_RESET}"
+    echo -e "  ${C_BOLD}${MSG_BANNER_CREDITS:-YT-CLI v1.4 • Creado por Kenny Waddell (@KennyWaddell)}${C_RESET}"
     echo -e "  ${C_GRAY}${MSG_BANNER_SUBTITLE:-Cliente Multimedia: YouTube, TikTok, X, Reels y +1000 sitios}${C_RESET}"
     echo -e "  ${C_GRAY}${MSG_BANNER_FEATURES:-Aceleración HWDEC Auto • Cola FZF • Descargas MP4/MP3}${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}"
@@ -992,7 +1036,7 @@ show_about() {
     echo -e "${C_CYAN}================================================================${C_RESET}"
     echo -e "${C_BOLD}                   ${MSG_ABOUT_TITLE:-ACERCA DE YT-CLI / CRÉDITOS}${C_RESET}"
     echo -e "${C_CYAN}================================================================${C_RESET}\n"
-    echo -e "  ${C_YELLOW}${MSG_ABOUT_VERSION:-Versión:}${C_RESET}      ${C_BOLD}v1.3${C_RESET}"
+    echo -e "  ${C_YELLOW}${MSG_ABOUT_VERSION:-Versión:}${C_RESET}      ${C_BOLD}v1.4${C_RESET}"
     echo -e "  ${C_YELLOW}${MSG_ABOUT_AUTHOR:-Autor:}${C_RESET}        ${C_GREEN}Kenny Waddell (@KennyWaddell)${C_RESET}"
     echo -e "  ${C_YELLOW}${MSG_ABOUT_COLLAB:-Colaboración:}${C_RESET} Google DeepMind / Antigravity"
     echo -e "  ${C_YELLOW}${MSG_ABOUT_LICENSE:-Licencia:}${C_RESET}     GNU General Public License v3.0 (GPLv3)"
@@ -1018,7 +1062,7 @@ main() {
                 echo "  -c, --cookies [navegador/ruta] Usar cookies para contenido restringido (ej: brave, firefox, cookies.txt)"
                 echo "  -a, --audio [query/url]       Reproducir solo el audio (Modo podcast)"
                 echo "  -d, --download [query/url]    Descargar video directamente en 720p MP4"
-                echo "  -m, --music [query/url]       Descargar canción directamente en MP3 320k"
+                echo "  -m, --music [query/url]       Descargar audio en MP3, M4A, Opus o FLAC"
                 echo "  -s, --split [query/url]       Descargar dividiendo en capítulos (MP3 / Video)"
                 echo "  -u, --update                  Actualizar yt-dlp a la última versión oficial"
                 echo "  -H, --history                 Abrir el historial de vídeos vistos"

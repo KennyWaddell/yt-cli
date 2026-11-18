@@ -60,13 +60,16 @@ If you are familiar with terminal tools like `ytfzf`, here is how `YT-CLI` compa
   * **1080p Full HD:** GPU-accelerated H.264 (with automatic fallback to 720p if H.264 is unavailable).
   * **480p / 360p:** For slow connections or extreme power saving.
   * **Audio Only:** Ideal for podcasts, tutorials, or background music (~25 MB RAM).
-* ⬇️ **Resumable Downloads:**
+* ⬇️ **Smart & Resumable Downloads:**
+  * **Chapter Splitting (`--split-chapters` / `-s`):** Automatically split albums, podcasts, and courses into separate individual tracks without re-encoding.
+  * **Native Audio Formats:** Download in native **M4A/AAC** or **Opus** (direct stream copy from YT with official cover art, zero quality loss) or standard **MP3** (320k, 192k, 128k) and **FLAC**.
+  * **Safe Download Archive:** Automatically keeps track of downloaded files (`--download-archive`), ensuring batch playlist and channel downloads skip already downloaded media without wasting bandwidth.
   * **Automatic Resumption:** Network drops automatically resume where they left off (`--continue`).
   * **Folder Selector:** Save directly to system folders, external USB flash drives, or custom paths.
-  * **MP4 Videos:** Universally compatible with mobile devices and smart TVs.
-  * **MP3 Audio:** 320 kbps, 192 kbps, or 128 kbps with embedded thumbnail and metadata.
+  * **MP4 Videos:** Universally compatible H.264 up to 1080p with embedded thumbnails.
   * **Playlist Support:** Download full YouTube playlists in batch.
-* 📜 **Local History & Playback Resume:** Remembers watched videos (`yt-cli -H` or `:h`) and resumes playback at the exact second you left off (`--save-position-on-quit`). 100% private and stored locally.
+* 🔄 **Built-in yt-dlp Updater:** Type `:u` or `:update` in the prompt (or run `yt-cli -u`) to instantly check and update `yt-dlp` to the latest official release whenever YouTube algorithms change.
+* 📜 **Local History & Playback Resume:** Remembers watched videos (`yt-cli -H` or `:h`) with LRU ordering and resumes playback at the exact second you left off (`--save-position-on-quit`). 100% private and stored locally.
 * 🍪 **Browser Cookie Support:** Bypass age restrictions and bot check gates by passing session cookies from Brave, Chrome, Firefox, or Edge (`-c brave` / dropdown in GUI).
 * 🌐 **Bilingual System (Spanish & English):** Native internationalization with automatic OS language detection, runtime switcher (`:lang`), and CLI flag (`--lang`).
 * 🪟 **Portable Windows GUI:** Standalone zero-install executable for Windows 7 SP1, 8.1, 10, and 11 with dark/light themes, progress bars, and dedicated audio mode.
