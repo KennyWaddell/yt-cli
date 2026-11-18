@@ -7,6 +7,7 @@ Descarga yt-dlp.exe, ffmpeg.exe y mpv.exe dentro de windows/bin/ sin tocar el PA
 import json
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 import urllib.request
@@ -27,9 +28,18 @@ URL_7ZR = "https://www.7-zip.org/a/7zr.exe"
 
 def download_file(url, dest_path, label):
     print(f"  -> Descargando {label}...")
+    curl_bin = shutil.which("curl") or shutil.which("curl.exe")
+    if curl_bin:
+        res = subprocess.run([curl_bin, "-fSL", "--retry", "3", "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "-o", dest_path, url])
+        if res.returncode == 0 and os.path.isfile(dest_path) and os.path.getsize(dest_path) > 0:
+            print(f"  [OK] {label} descargado con curl.")
+            return
+
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=120) as resp, open(dest_path, "wb") as out:
+    ctx = getattr(ssl, "_create_unverified_context", None)
+    context_arg = {"context": ctx()} if ctx else {}
+    with urllib.request.urlopen(req, timeout=120, **context_arg) as resp, open(dest_path, "wb") as out:
         total = int(resp.headers.get("Content-Length") or 0)
         downloaded = 0
         chunk_size = 65536
@@ -82,10 +92,20 @@ def setup_ffmpeg(force=False):
 
 
 def find_7z_command():
-    for cmd in ("7z", "7za", "7zr"):
-        found = shutil.which(cmd)
-        if found:
-            return found
+    candidates = [
+        "7z", "7za", "7zr",
+        r"C:\Program Files\7-Zip\7z.exe",
+        r"C:\Program Files (x86)\7-Zip\7z.exe",
+        r"C:\ProgramData\chocolatey\bin\7z.exe"
+    ]
+    for cmd in candidates:
+        if os.path.isabs(cmd):
+            if os.path.isfile(cmd):
+                return cmd
+        else:
+            found = shutil.which(cmd)
+            if found:
+                return found
     if sys.platform.startswith("win"):
         seven_zr = os.path.join(TEMP_DIR, "7zr.exe")
         download_file(URL_7ZR, seven_zr, "7zr.exe (descompresor temporal)")
@@ -163,13 +183,18 @@ def main():
         setup_ytdlp(force=force)
         setup_ffmpeg(force=force)
         setup_mpv(force=force)
-        setup_vulkan(force=force)
+        try:
+            setup_vulkan(force=force)
+        except Exception as v_err:
+            print(f"  [AVISO] vulkan-1.dll no pudo descargarse (opcional): {v_err}")
         print("\n========================================================")
         print(" [COMPLETADO] Todos los binarios estan listos en bin/")
         print(" Ya puedes ejecutar YT-CLI.bat sin instalar nada mas.")
         print("========================================================")
     except Exception as exc:
-        print(f"\n[ERROR] {exc}", file=sys.stderr)
+        import traceback
+        print(f"\n[ERROR CRITICO] {exc}", file=sys.stderr)
+        traceback.print_exc()
         return 1
     finally:
         shutil.rmtree(TEMP_DIR, ignore_errors=True)
