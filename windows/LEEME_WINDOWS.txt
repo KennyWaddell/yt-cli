@@ -35,9 +35,12 @@ Todos los motores multimedia ya vienen incluidos dentro de la carpeta "bin/":
 CARACTERISTICAS
 ---------------
 * Streaming fluido en 360p, 480p, 720p, 1080p y 60 FPS (DirectX 11 / DXVA2).
-* Descargas MP4 y MP3 (320k, 192k, 128k) con unión automática.
-* Historial local con reanudación automática donde lo dejaste.
-* Soporte para cookies de sesión de Brave, Chrome, Firefox y Edge.
+* Descargas MP4 (con division en capitulos y recorte por tiempo).
+* Audio multiformato nativo: MP3 (320k/192k/128k), M4A, Opus y FLAC con caratula.
+* Extraccion de subtitulos y transcripciones limpias en texto plano (.txt y .srt).
+* Historial seguro de descargas previas (evita duplicar descargas ya realizadas).
+* Historial local con reanudacion automatica donde lo dejaste.
+* Soporte para cookies de sesion de Brave, Chrome, Firefox y Edge.
 * Modos visuales Tema Oscuro y Tema Claro.
 * Consumo ultrabajo de memoria RAM (~22 MB).
 
