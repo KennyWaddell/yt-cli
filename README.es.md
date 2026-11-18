@@ -13,6 +13,10 @@
 [![GUI: Python Tkinter](https://img.shields.io/badge/GUI-Tkinter%20(Windows)-orange.svg)](#uso-en-windows-portable)
 [![Backend: MPV & yt-dlp](https://img.shields.io/badge/Backend-MPV%20%2B%20yt--dlp-red.svg)](#características-principales)
 
+<p align="center">
+  <img src="assets/YT-CLITerminal.png" alt="Interfaz de terminal de YT-CLI" width="750">
+</p>
+
 ---
 
 ## ⚡ El Problema que Resuelve
