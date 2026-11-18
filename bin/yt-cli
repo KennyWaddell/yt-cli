@@ -70,8 +70,17 @@ set_cookies() {
 # Configuración del Historial y Entorno local
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/yt-cli"
 HISTORY_FILE="${CONFIG_DIR}/history.json"
+ARCHIVE_FILE="${CONFIG_DIR}/download_archive.txt"
 CONFIG_FILE="${CONFIG_DIR}/config"
 mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+
+# Reiniciar registro de descargas previas (archive)
+clear_download_archive() {
+    if [ -f "$ARCHIVE_FILE" ]; then
+        rm -f "$ARCHIVE_FILE"
+    fi
+    echo -e "${C_GREEN}${MSG_ARCHIVE_CLEARED:-✔ Registro de descargas previas reiniciado correctamente.}${C_RESET}"
+}
 
 # Resolución del directorio de idiomas (i18n)
 LANG_DIR=""
@@ -309,6 +318,11 @@ EOF
                 download_music "$url"
                 return
                 ;;
+            down_chapters)
+                record_history "$clean_title" "$id"
+                download_chapters "$url"
+                return
+                ;;
             delete)
                 delete_history_item "$id"
                 sleep 0.8
@@ -460,6 +474,7 @@ choose_action() {
     echo -e "  ${C_BOLD}[5]${C_RESET} ${MSG_ACTION_5}"
     echo -e "  ${C_BOLD}[6]${C_RESET} ${MSG_ACTION_6}"
     echo -e "  ${C_BOLD}[7]${C_RESET} ${MSG_ACTION_7}"
+    echo -e "  ${C_BOLD}[8]${C_RESET} ${MSG_ACTION_8:-Descargar por capítulos  (Separar álbum/podcast por pistas)}"
     echo ""
     echo -e "  ${C_BOLD}${MSG_ACTION_NAV_HEADER}${C_RESET}"
     if [ "$is_history" = "history" ]; then
@@ -468,9 +483,9 @@ choose_action() {
     echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0}"
     echo ""
     if [ "$is_history" = "history" ]; then
-        echo -ne "${C_YELLOW}${MSG_ACTION_HIST_PROMPT:-Elige opción [1-7 | d para borrar | 0 para volver] (Enter para 720p): }${C_RESET}"
+        echo -ne "${C_YELLOW}${MSG_ACTION_HIST_PROMPT:-Elige opción [1-8 | d para borrar | 0 para volver] (Enter para 720p): }${C_RESET}"
     else
-        echo -ne "${C_YELLOW}${MSG_ACTION_PROMPT}${C_RESET}"
+        echo -ne "${C_YELLOW}${MSG_ACTION_PROMPT:-Elige opción [1-8 | 0 para volver] (Enter para ver en 720p): }${C_RESET}"
     fi
 
     local user_opt=""
@@ -490,6 +505,7 @@ choose_action() {
         5) SELECTED_ACTION="down_720" ;;
         6) SELECTED_ACTION="down_1080" ;;
         7|[mM]) SELECTED_ACTION="down_mp3" ;;
+        8|[sS]) SELECTED_ACTION="down_chapters" ;;
         [dD]|del|borrar|eliminar)
             if [ "$is_history" = "history" ]; then
                 SELECTED_ACTION="delete"
@@ -601,6 +617,7 @@ download_videos() {
         if ! "$BIN_YTDLP" \
             ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
             -c \
+            --download-archive "${ARCHIVE_FILE}" \
             -f "${ytdl_fmt}" \
             --merge-output-format mp4 \
             --embed-thumbnail \
@@ -672,6 +689,7 @@ download_music() {
         if ! "$BIN_YTDLP" \
             ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
             -c \
+            --download-archive "${ARCHIVE_FILE}" \
             --extract-audio \
             --audio-format mp3 \
             --audio-quality "${bitrate}k" \
@@ -694,6 +712,108 @@ download_music() {
     echo -ne "${C_YELLOW}${MSG_HELP_PRESS_ENTER}${C_RESET}"
     local dummy=""
     if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
+}
+
+# 8b. Descarga optimizada dividida por capítulos (Álbumes / Podcasts / Cursos)
+download_chapters() {
+    local targets=("$@")
+
+    echo -e "${C_CYAN}${MSG_DL_CHAPTERS_FORMAT_HEADER:-Selecciona formato para dividir por capítulos:}${C_RESET}"
+    echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_CHAPTERS_F1:-Audio MP3 (Pistas individuales con etiquetas) ★ Predeterminado}"
+    echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_CHAPTERS_F2:-Video 720p HD (Archivos MP4 por capítulo)}"
+    echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_CHAPTERS_F3:-Video 1080p Full HD (Archivos MP4 por capítulo)}"
+    echo ""
+    echo -ne "${C_YELLOW}${MSG_DL_CHAPTERS_PROMPT:-Elige formato [1-3] (Enter para MP3): }${C_RESET}"
+
+    local user_opt=""
+    if [ -t 0 ]; then read -r user_opt || user_opt="1"; else read -r user_opt </dev/tty || user_opt="1"; fi
+    [ -z "$user_opt" ] && user_opt="1"
+    echo ""
+
+    local format_type="mp3"
+    case "$user_opt" in
+        2) format_type="720" ;;
+        3) format_type="1080" ;;
+        *) format_type="mp3" ;;
+    esac
+
+    local dest_dir
+    if [ "$format_type" = "mp3" ]; then
+        dest_dir=$(choose_destination_folder "audio")
+    else
+        dest_dir=$(choose_destination_folder "video")
+    fi
+    mkdir -p "$dest_dir" 2>/dev/null || true
+
+    echo -e "${C_CYAN}${MSG_DL_CHAPTERS_START:-✂ Descargando y dividiendo por capítulos...}${C_RESET}"
+    echo -e "${C_GRAY}${MSG_DL_SAVING_IN} ${dest_dir}/${C_RESET}\n"
+
+    local has_error=0
+    for t in "${targets[@]}"; do
+        if [ "$format_type" = "mp3" ]; then
+            if ! "$BIN_YTDLP" \
+                ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                -c \
+                --download-archive "${ARCHIVE_FILE}" \
+                --split-chapters \
+                --extract-audio \
+                --audio-format mp3 \
+                --audio-quality 320k \
+                --embed-thumbnail \
+                --embed-metadata \
+                --no-warnings \
+                -o "chapter:${dest_dir}/%(title)s/%(section_number)02d - %(section_title)s.%(ext)s" \
+                -o "${dest_dir}/%(title)s.%(ext)s" \
+                "$t"; then
+                has_error=1
+            fi
+        else
+            local height="$format_type"
+            local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio/best[height<=${height}]/best"
+            if ! "$BIN_YTDLP" \
+                ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                -c \
+                --download-archive "${ARCHIVE_FILE}" \
+                --split-chapters \
+                -f "${ytdl_fmt}" \
+                --merge-output-format mp4 \
+                --embed-thumbnail \
+                --embed-metadata \
+                --no-warnings \
+                -o "chapter:${dest_dir}/%(title)s/%(section_number)02d - %(section_title)s.%(ext)s" \
+                -o "${dest_dir}/%(title)s.%(ext)s" \
+                "$t"; then
+                has_error=1
+            fi
+        fi
+    done
+
+    if [ "$has_error" -eq 0 ]; then
+        echo -e "\n${C_GREEN}${MSG_DL_ALL_COMPLETE}${C_RESET}"
+        notify_user "${MSG_DL_SUCCESS_NOTIFY}" "${MSG_DL_SUCCESS_MSG} ${dest_dir}"
+    else
+        echo -e "\n${C_RED}✖ ${MSG_DL_FAILED}${C_RESET}"
+    fi
+
+    echo -ne "${C_YELLOW}${MSG_HELP_PRESS_ENTER}${C_RESET}"
+    local dummy=""
+    if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
+}
+
+# 8c. Actualización de yt-dlp
+update_ytdlp() {
+    echo -e "${C_CYAN}${MSG_UPDATE_START:-🔄 Comprobando actualizaciones de yt-dlp...}${C_RESET}\n"
+
+    if "$BIN_YTDLP" -U; then
+        echo -e "\n${C_GREEN}${MSG_UPDATE_SUCCESS:-✔ yt-dlp actualizado correctamente a la última versión oficial.}${C_RESET}"
+    else
+        echo -e "\n${C_YELLOW}${MSG_UPDATE_FAIL:-No se pudo actualizar automáticamente con yt-dlp -U.}${C_RESET}"
+        echo -e "${C_GRAY}${MSG_UPDATE_TIP:-Sugerencia: Si instalaste mediante pipx ejecuta 'pipx upgrade yt-dlp', o actualiza mediante tu gestor de paquetes.}${C_RESET}"
+    fi
+
+    echo -ne "\n${C_YELLOW}${MSG_HELP_PRESS_ENTER:-Presiona [Enter] para continuar...}${C_RESET}"
+    local _dummy=""
+    if [ -t 0 ]; then read -r _dummy; else read -r _dummy </dev/tty; fi
 }
 
 # 9. Flujo interactivo de búsqueda y cola con FZF (Multi-select)
@@ -771,13 +891,18 @@ search_and_play() {
                 play_1080)  play_videos "1080" "${selected_urls[@]}" ;;
                 play_480)   play_videos "480" "${selected_urls[@]}" ;;
                 play_audio) play_videos "audio" "${selected_urls[@]}" ;;
-                down_720)   download_videos "720" "${selected_urls[@]}" ;;
-                down_1080)  download_videos "1080" "${selected_urls[@]}" ;;
-                down_mp3)   download_music "${selected_urls[@]}" ;;
-                back|cancel) continue ;;
+                down_720)      download_videos "720" "${selected_urls[@]}" ;;
+                down_1080)     download_videos "1080" "${selected_urls[@]}" ;;
+                down_mp3)      download_music "${selected_urls[@]}" ;;
+                down_chapters) download_chapters "${selected_urls[@]}" ;;
+                back|cancel)   continue ;;
             esac
         else
-            play_videos "$forced_mode" "${selected_urls[@]}"
+            if [ "$forced_mode" = "down_chapters" ]; then
+                download_chapters "${selected_urls[@]}"
+            else
+                play_videos "$forced_mode" "${selected_urls[@]}"
+            fi
         fi
     done
 }
@@ -793,14 +918,15 @@ handle_direct_url() {
 
     choose_action "1"
     case "$SELECTED_ACTION" in
-        play_720)   play_videos "720" "$target_url" ;;
-        play_1080)  play_videos "1080" "$target_url" ;;
-        play_480)   play_videos "480" "$target_url" ;;
-        play_audio) play_videos "audio" "$target_url" ;;
-        down_720)   download_videos "720" "$target_url" ;;
-        down_1080)  download_videos "1080" "$target_url" ;;
-        down_mp3)   download_music "$target_url" ;;
-        back|cancel) return ;;
+        play_720)      play_videos "720" "$target_url" ;;
+        play_1080)     play_videos "1080" "$target_url" ;;
+        play_480)      play_videos "480" "$target_url" ;;
+        play_audio)    play_videos "audio" "$target_url" ;;
+        down_720)      download_videos "720" "$target_url" ;;
+        down_1080)     download_videos "1080" "$target_url" ;;
+        down_mp3)      download_music "$target_url" ;;
+        down_chapters) download_chapters "$target_url" ;;
+        back|cancel)   return ;;
     esac
 }
 
@@ -819,7 +945,7 @@ show_banner() {
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}"
     echo -e "  ${C_YELLOW}${MSG_BANNER_SEARCHES:-Búsquedas: término | @canal | @canal término | enlaces URL}${C_RESET}"
     echo -e "  ${C_YELLOW}${MSG_BANNER_CMD_1:-Comandos:  [:help] Ayuda     [:h] Historial    [:c] Cookies}${C_RESET}"
-    echo -e "  ${C_YELLOW}${MSG_BANNER_CMD_2:-           [:lang] Idioma    [:about] Créditos [q] Salir}${C_RESET}"
+    echo -e "  ${C_YELLOW}${MSG_BANNER_CMD_2:-           [:u] Actualizar   [:lang] Idioma    [:about] Créditos [q] Salir}${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}\n"
 }
 
@@ -838,6 +964,8 @@ show_interactive_help() {
     echo -e "    ${C_GREEN}:help${C_RESET} o ${C_GREEN}:?${C_RESET}                   ${MSG_HELP_CMD_HELP}"
     echo -e "    ${C_GREEN}:h${C_RESET}                            ${MSG_HELP_CMD_HIST}"
     echo -e "    ${C_GREEN}:clear${C_RESET}                        ${MSG_HELP_CMD_CLEAR}"
+    echo -e "    ${C_GREEN}:u${C_RESET} o ${C_GREEN}:update${C_RESET}                 ${MSG_HELP_CMD_UPDATE:-Actualiza yt-dlp a la última versión oficial}"
+    echo -e "    ${C_GREEN}:clear-archive${C_RESET} o ${C_GREEN}:ca${C_RESET}           ${MSG_HELP_CMD_ARCHIVE:-Reinicia el registro de descargas previas}"
     echo -e "    ${C_GREEN}:c${C_RESET}                            ${MSG_HELP_CMD_COOKIE}"
     echo -e "    ${C_GREEN}:lang [es|en]${C_RESET}                 ${MSG_HELP_CMD_LANG}"
     echo -e "    ${C_GREEN}:about${C_RESET}                        ${MSG_HELP_CMD_ABOUT:-Muestra los créditos y acerca de YT-CLI}"
@@ -846,6 +974,8 @@ show_interactive_help() {
     echo -e "    ${C_CYAN}yt-cli -a <query/url>${C_RESET}               ${MSG_HELP_CLI_AUDIO}"
     echo -e "    ${C_CYAN}yt-cli -d <query/url>${C_RESET}               ${MSG_HELP_CLI_DOWN}"
     echo -e "    ${C_CYAN}yt-cli -m <query/url>${C_RESET}               ${MSG_HELP_CLI_MUSIC}"
+    echo -e "    ${C_CYAN}yt-cli -s <query/url>${C_RESET}               ${MSG_HELP_CLI_SPLIT:-Descargar dividiendo en capítulos (álbum/curso)}"
+    echo -e "    ${C_CYAN}yt-cli -u / --update${C_RESET}                ${MSG_HELP_CLI_UPDATE:-Actualizar yt-dlp y salir}"
     echo -e "    ${C_CYAN}yt-cli -H${C_RESET}                           ${MSG_HELP_CLI_HIST}"
     echo -e "    ${C_CYAN}yt-cli --lang [es|en]${C_RESET}               ${MSG_HELP_CMD_LANG}"
     echo -e "    ${C_CYAN}yt-cli -v / --version${C_RESET}               ${MSG_HELP_CMD_ABOUT:-Muestra los créditos y acerca de YT-CLI}"
@@ -889,8 +1019,11 @@ main() {
                 echo "  -a, --audio [query/url]       Reproducir solo el audio (Modo podcast)"
                 echo "  -d, --download [query/url]    Descargar video directamente en 720p MP4"
                 echo "  -m, --music [query/url]       Descargar canción directamente en MP3 320k"
+                echo "  -s, --split [query/url]       Descargar dividiendo en capítulos (MP3 / Video)"
+                echo "  -u, --update                  Actualizar yt-dlp a la última versión oficial"
                 echo "  -H, --history                 Abrir el historial de vídeos vistos"
                 echo "      --clear-history           Borrar todo el historial guardado"
+                echo "      --clear-archive           Reiniciar el registro de vídeos ya descargados"
                 echo "      --lang [es|en]            Configurar idioma / Set language"
                 echo "  -v, --version, --about        Mostrar versión y créditos / Show credits"
                 echo "  -h, --help                    Mostrar esta ayuda"
@@ -904,11 +1037,13 @@ main() {
                 echo "  yt-cli -H                     Abrir el historial para reanudar cualquier vídeo"
                 echo "  yt-cli \"noticias\"            Buscar directamente y elegir del menú"
                 echo "  yt-cli -m \"linkin park\"       Buscar y descargar en MP3 directo a tu carpeta Música"
+                echo "  yt-cli -s \"pink floyd album\"  Descargar álbum dividiéndolo en canciones individuales"
+                echo "  yt-cli -u                     Actualizar yt-dlp"
                 echo "  yt-cli https://youtu.be/...   Opciones directas para un enlace"
                 exit 0
                 ;;
             -v|--version|--about)
-                echo "YT-CLI v1.3"
+                echo "YT-CLI v1.4"
                 echo "Autor: Kenny Waddell (@KennyWaddell)"
                 echo "Colaboración: Google DeepMind / Antigravity"
                 echo "Licencia: GNU General Public License v3.0 (GPLv3)"
@@ -940,6 +1075,31 @@ main() {
                 ;;
             --clear-history)
                 clear_history
+                exit 0
+                ;;
+            --clear-archive)
+                clear_download_archive
+                exit 0
+                ;;
+            -u|--update|--update-ytdlp)
+                update_ytdlp
+                exit 0
+                ;;
+            -s|--split|--split-chapters)
+                shift
+                if [ $# -gt 0 ]; then
+                    local target="$*"
+                    if [[ "$target" =~ ^https?:// ]]; then
+                        download_chapters "$target"
+                    else
+                        search_and_play "$target" "down_chapters"
+                    fi
+                else
+                    show_banner
+                    echo -ne "${C_CYAN}Buscar en YouTube (Dividir en Capítulos): ${C_RESET}"
+                    read -r query
+                    [ -n "$query" ] && search_and_play "$query" "down_chapters"
+                fi
                 exit 0
                 ;;
             -a|--audio)
@@ -1017,7 +1177,7 @@ main() {
     # Bucle interactivo normal
     while true; do
         show_banner
-        echo -ne "${C_CYAN}${MSG_SEARCH_PROMPT:-Buscar, pegar enlace o comando [:help | :h | :lang | @canal | q]: }${C_RESET}"
+        echo -ne "${C_CYAN}${MSG_SEARCH_PROMPT:-Buscar, pegar enlace o comando [:help | :h | :u | :lang | @canal | q]: }${C_RESET}"
         read -r query
 
         if [ -z "$query" ]; then
@@ -1031,6 +1191,17 @@ main() {
 
         if [[ "$query" == ":help" || "$query" == ":?" || "$query" == "help" || "$query" == "ayuda" || "$query" == ":ayuda" ]]; then
             show_interactive_help
+            continue
+        fi
+
+        if [[ "$query" == ":u" || "$query" == ":update" || "$query" == "update" || "$query" == "actualizar" || "$query" == ":actualizar" ]]; then
+            update_ytdlp
+            continue
+        fi
+
+        if [[ "$query" == ":clear-archive" || "$query" == ":ca" ]]; then
+            clear_download_archive
+            sleep 1.2
             continue
         fi
 
