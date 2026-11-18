@@ -18,7 +18,9 @@ TEMP_DIR = os.path.join(BASE_DIR, "_tmp_dl")
 
 URL_YTDLP = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
 URL_FFMPEG_ZIP = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-URL_MPV_API = "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest"
+# Compilación universal de mpv compatible con Windows 7 SP1, 8.1, 10 y 11
+# (v0.37.0 sin dependencia estricta de AdjustWindowRectExForDpi de Windows 10)
+URL_MPV_7Z = "https://sourceforge.net/projects/mpv-player-windows/files/64bit/mpv-x86_64-20231126-git-6898d57.7z/download"
 URL_VULKAN_ZIP = "https://sdk.lunarg.com/sdk/download/1.3.296.0/windows/VulkanRT-1.3.296.0-Components.zip"
 URL_7ZR = "https://www.7-zip.org/a/7zr.exe"
 
@@ -78,25 +80,6 @@ def setup_ffmpeg(force=False):
     print("  [OK] ffmpeg.exe listo.")
 
 
-def get_mpv_asset_url():
-    req = urllib.request.Request(URL_MPV_API, headers={"User-Agent": "YT-CLI-Setup/1.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-
-    # Preferir compilación estándar x86_64 (sin -v3) para compatibilidad con CPUs modestas/antiguas
-    fallback_url = None
-    for asset in data.get("assets", []):
-        name = asset.get("name", "")
-        if name.startswith("mpv-x86_64-") and name.endswith(".7z"):
-            if "-v3-" not in name and "dev" not in name:
-                return asset["browser_download_url"], name
-            if fallback_url is None and "dev" not in name:
-                fallback_url = (asset["browser_download_url"], name)
-    if fallback_url:
-        return fallback_url
-    raise RuntimeError("No se encontró el paquete mpv-x86_64-*.7z en GitHub Releases.")
-
-
 def find_7z_command():
     for cmd in ("7z", "7za", "7zr"):
         found = shutil.which(cmd)
@@ -110,17 +93,17 @@ def find_7z_command():
 
 
 def setup_mpv(force=False):
-    print("\n[3/4] mpv.exe")
+    print("\n[3/4] mpv.exe (Universal Win 7/8.1/10/11)")
     dest = os.path.join(BIN_DIR, "mpv.exe")
     if not force and os.path.isfile(dest):
         print("  [OK] mpv.exe ya existe en bin/ (omitido).")
         return
-    mpv_url, mpv_name = get_mpv_asset_url()
+    mpv_name = "mpv-x86_64-20231126-git-6898d57.7z"
     archive_path = os.path.join(TEMP_DIR, mpv_name)
     extract_dir = os.path.join(TEMP_DIR, "mpv_extract")
     os.makedirs(extract_dir, exist_ok=True)
 
-    download_file(mpv_url, archive_path, mpv_name)
+    download_file(URL_MPV_7Z, archive_path, mpv_name)
     extractor = find_7z_command()
 
     print("  -> Extrayendo mpv.exe y librerías...")

@@ -18,6 +18,16 @@ from tkinter import ttk, messagebox, filedialog
 
 IS_WINDOWS = sys.platform.startswith("win")
 
+if IS_WINDOWS:
+    try:
+        import ctypes
+        # SEM_FAILCRITICALERRORS (0x0001) | SEM_NOOPENFILEERRORBOX (0x8000)
+        # Suprime ventanas de error críticas del sistema operativo como "No hay disco en la unidad",
+        # heredándose automáticamente a subprocesos hijos (ffmpeg.exe, yt-dlp.exe).
+        ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x8000)
+    except Exception:
+        pass
+
 def is_browser_installed(browser_name):
     """Comprueba si el navegador seleccionado existe realmente en el sistema antes de pedirle cookies."""
     b = str(browser_name).lower().strip()
