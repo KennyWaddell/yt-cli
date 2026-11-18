@@ -70,26 +70,31 @@ def setup_ytdlp(force=False):
 
 
 def setup_ffmpeg(force=False):
-    dest = os.path.join(BIN_DIR, "ffmpeg.exe")
-    print("\n[2/4] ffmpeg.exe")
-    if not force and os.path.isfile(dest):
-        print("  [OK] ffmpeg.exe ya existe en bin/ (omitido).")
+    dest_ffmpeg = os.path.join(BIN_DIR, "ffmpeg.exe")
+    dest_ffprobe = os.path.join(BIN_DIR, "ffprobe.exe")
+    print("\n[2/4] ffmpeg.exe y ffprobe.exe")
+    if not force and os.path.isfile(dest_ffmpeg) and os.path.isfile(dest_ffprobe):
+        print("  [OK] ffmpeg.exe y ffprobe.exe ya existen en bin/ (omitido).")
         return
     zip_path = os.path.join(TEMP_DIR, "ffmpeg.zip")
     download_file(URL_FFMPEG_ZIP, zip_path, "FFmpeg (paquete oficial .zip)")
 
-    print("  -> Extrayendo ffmpeg.exe...")
-    found = False
+    print("  -> Extrayendo ffmpeg.exe y ffprobe.exe...")
+    found_ffmpeg = False
+    found_ffprobe = False
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
             if member.endswith("/bin/ffmpeg.exe") or member == "ffmpeg.exe":
-                with zf.open(member) as src, open(dest, "wb") as out:
+                with zf.open(member) as src, open(dest_ffmpeg, "wb") as out:
                     shutil.copyfileobj(src, out)
-                found = True
-                break
-    if not found:
+                found_ffmpeg = True
+            elif member.endswith("/bin/ffprobe.exe") or member == "ffprobe.exe":
+                with zf.open(member) as src, open(dest_ffprobe, "wb") as out:
+                    shutil.copyfileobj(src, out)
+                found_ffprobe = True
+    if not found_ffmpeg:
         raise RuntimeError("No se encontró ffmpeg.exe dentro del archivo .zip.")
-    print("  [OK] ffmpeg.exe listo.")
+    print(f"  [OK] ffmpeg.exe {'y ffprobe.exe ' if found_ffprobe else ''}listo.")
 
 
 def find_7z_command():

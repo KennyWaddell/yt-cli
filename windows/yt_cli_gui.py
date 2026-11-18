@@ -798,6 +798,16 @@ class YtCliGUI:
         self.btn_extract_subs.config(text=s["extract_subs"])
         self.btn_cancel.config(text=s["stop"])
 
+        is_en = self.current_lang == "en"
+        none_label = "None" if is_en else "Ninguna"
+        current_cookie = self.var_cookies.get()
+        if current_cookie in ("Ninguna", "None"):
+            self.var_cookies.set(none_label)
+        self.cb_cookies.config(values=[none_label, "Firefox", "Chrome", "Edge", "Brave"])
+
+        if self.status_var.get() in ("Listo.", "Ready.", "Ready", "Listo"):
+            self.status_var.set("Ready." if is_en else "Listo.")
+
     def toggle_language(self):
         self.current_lang = "en" if self.current_lang == "es" else "es"
         self.update_ui_language()
@@ -903,7 +913,9 @@ class YtCliGUI:
 
     def _search_worker(self, query, limit):
         ytdlp_cmd = get_binary_path("yt-dlp")
+        bin_dir = os.path.dirname(os.path.abspath(ytdlp_cmd))
         env = os.environ.copy()
+        env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
 
@@ -923,7 +935,7 @@ class YtCliGUI:
             ytdlp_cmd,
             "--encoding", "utf-8",
             "--flat-playlist",
-            "--extractor-args", "youtube:lang=es",
+            "--extractor-args", f"youtube:lang={self.current_lang}",
             "--print", "%(title)s\t%(uploader)s\t%(duration_string)s\t%(id)s",
         ] + extra_args + [search_target]
         try:
@@ -1170,13 +1182,22 @@ class YtCliGUI:
 
     def play_selected(self, audio_only=False):
         urls = self.get_selected_urls()
+        is_en = self.current_lang == "en"
         if not urls:
-            messagebox.showinfo("Reproducir", "Selecciona al menos un vídeo de la lista.")
+            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
+            title = "Play" if is_en else "Reproducir"
+            messagebox.showinfo(title, msg)
             return
 
         mpv_cmd = get_binary_path("mpv")
         ytdlp_cmd = get_binary_path("yt-dlp")
-        hwdec_val = "d3d11va,dxva2" if IS_WINDOWS else "vaapi"
+        bin_dir = os.path.dirname(os.path.abspath(ytdlp_cmd))
+        clean_ytdlp = os.path.abspath(ytdlp_cmd).replace("\\", "/")
+
+        env = os.environ.copy()
+        env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
 
         # Registrar en historial
         selected_ids = self.tree.selection()
@@ -1195,34 +1216,36 @@ class YtCliGUI:
         # Notificación visual y activación de la barra de progreso
         self.prog_bar.start(10)
         self.btn_cancel.config(state=tk.NORMAL)
-        self.status_var.set("⏳ Cargando buffer de YouTube... el reproductor abrirá automáticamente en ~10-15s")
+        if is_en:
+            self.status_var.set("⏳ Loading YouTube buffer... player will launch in ~10-15s")
+        else:
+            self.status_var.set("⏳ Cargando buffer de YouTube... el reproductor abrirá automáticamente en ~10-15s")
 
         # Base de comando con reanudación automática (save-position-on-quit) y buffer optimizado
         cmd = [
             mpv_cmd,
             "--save-position-on-quit",
             "--watch-later-options=start",
-            f"--script-opts=ytdl_hook-ytdl_path={ytdlp_cmd}",
-            "--ytdl-raw-options=extractor-args=youtube:lang=es",
+            f"--script-opts=ytdl_hook-ytdl_path={clean_ytdlp}",
+            f"--ytdl-raw-options=extractor-args=youtube:lang={self.current_lang}",
             "--demuxer-readahead-secs=5",
             "--demuxer-max-bytes=32M"
         ]
 
         # Soporte seguro de Cookies de navegadores (con verificación previa de instalación)
         cookie_choice = self.var_cookies.get()
-        if cookie_choice != "Ninguna":
+        if cookie_choice not in ("Ninguna", "None"):
             if is_browser_installed(cookie_choice):
                 cmd.append(f'--ytdl-raw-options-append=cookies-from-browser={cookie_choice.lower()}')
             else:
-                self.status_var.set(f"Aviso: Navegador {cookie_choice} no detectado. Continuando sin cookies...")
-
-        if IS_WINDOWS:
-            cmd.append("--gpu-api=d3d11")
+                warn_msg = f"Notice: Browser {cookie_choice} not detected. Continuing without cookies..." if is_en else f"Aviso: Navegador {cookie_choice} no detectado. Continuando sin cookies..."
+                self.status_var.set(warn_msg)
 
         if audio_only:
             # Ventana interactiva de audio con barra de tiempo, volumen, pausa y bucle
+            title_text = "YT-CLI - Audio Player" if is_en else "YT-CLI - Reproductor de Audio"
             cmd += [
-                "--title=YT-CLI - Reproductor de Audio",
+                f"--title={title_text}",
                 "--vid=no",
                 "--force-window=yes",
                 "--geometry=560x220",
@@ -1230,33 +1253,60 @@ class YtCliGUI:
                 "--ytdl-format=bestaudio[ext=m4a]/bestaudio/best"
             ]
         else:
-            quality = self.var_quality.get()
-            fps_choice = self.var_fps.get()
             fmt = self.get_format_string()
+            title_text = "YT-CLI - Video Player" if is_en else "YT-CLI - Reproductor de Vídeo"
             cmd += [
-                "--title=YT-CLI - Reproductor de Vídeo",
+                f"--title={title_text}",
                 "--vo=gpu",
-                f"--hwdec={hwdec_val}",
+                "--hwdec=auto-safe",
                 f"--ytdl-format={fmt}"
             ]
 
         cmd += urls
 
         try:
-            self.mpv_process = subprocess.Popen(cmd)
-            # Tras 10 segundos, actualizar estado a controles activos
-            def update_playing_status():
-                self.prog_bar.stop()
-                if audio_only:
-                    self.status_var.set("♫ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), 9/0 (Volumen), L (Bucle)")
+            self.mpv_process = subprocess.Popen(cmd, env=env)
+
+            # Monitoreo de arranque activo: detectar cierre o fallo prematuro de mpv
+            def check_mpv_startup(elapsed=0):
+                if not self.mpv_process:
+                    return
+                poll_code = self.mpv_process.poll()
+                if poll_code is not None:
+                    # mpv terminó prematuramente (cierre o fallo)
+                    self.prog_bar.stop()
+                    self.btn_cancel.config(state=tk.DISABLED)
+                    if poll_code != 0:
+                        err_text = f"Player closed unexpectedly (exit code {poll_code})." if is_en else f"El reproductor se cerró inesperadamente (código {poll_code})."
+                        self.status_var.set(err_text)
+                    else:
+                        ready_text = "Ready." if is_en else "Listo."
+                        self.status_var.set(ready_text)
+                    return
+
+                if elapsed >= 8:
+                    # Tras 8 segundos sigue en ejecución
+                    self.prog_bar.stop()
+                    if audio_only:
+                        self.status_var.set(
+                            "♫ Playing. Controls: Space (Pause), Arrows (Seek), 9/0 (Volume), L (Loop)" if is_en
+                            else "♫ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), 9/0 (Volumen), L (Bucle)"
+                        )
+                    else:
+                        self.status_var.set(
+                            "▶ Playing. Controls: Space (Pause), Arrows (Seek), F (Fullscreen)" if is_en
+                            else "▶ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), F (Pantalla completa)"
+                        )
                 else:
-                    self.status_var.set("▶ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), F (Pantalla completa)")
-            self.root.after(10000, update_playing_status)
+                    self.root.after(1000, lambda: check_mpv_startup(elapsed + 1))
+
+            self.root.after(1000, lambda: check_mpv_startup(1))
         except FileNotFoundError:
             self.prog_bar.stop()
             self.btn_cancel.config(state=tk.DISABLED)
-            self.status_var.set("Listo.")
-            messagebox.showerror("Error", f"No se encontró el ejecutable '{mpv_cmd}'.")
+            self.status_var.set("Ready." if is_en else "Listo.")
+            err_msg = f"Executable '{mpv_cmd}' not found." if is_en else f"No se encontró el ejecutable '{mpv_cmd}'."
+            messagebox.showerror("Error", err_msg)
 
     def prompt_video_download(self):
         urls = self.get_selected_urls()
@@ -1463,24 +1513,31 @@ class YtCliGUI:
     def _download_worker(self, urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section):
         ytdlp_cmd = get_binary_path("yt-dlp")
         ffmpeg_cmd = get_binary_path("ffmpeg")
+        bin_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
         archive_file = os.path.join(get_config_dir(), "download_archive.txt")
+        is_en = self.current_lang == "en"
+        has_error = False
+        last_error_msg = ""
+
+        env = os.environ.copy()
+        env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
 
         for idx, url in enumerate(urls, start=1):
             if self.is_cancelled:
                 break
 
-            self.msg_queue.put(("status", f"Descargando [{idx}/{len(urls)}]: conectando..."))
+            status_text = f"Downloading [{idx}/{len(urls)}]: connecting..." if is_en else f"Descargando [{idx}/{len(urls)}]: conectando..."
+            self.msg_queue.put(("status", status_text))
 
-            env = os.environ.copy()
-            env["PYTHONIOENCODING"] = "utf-8"
-            env["PYTHONUTF8"] = "1"
             cmd = [
                 ytdlp_cmd,
                 "--encoding", "utf-8",
                 "-c",
                 "--no-mtime",
                 "--download-archive", archive_file,
-                "--extractor-args", "youtube:lang=es",
+                "--extractor-args", f"youtube:lang={self.current_lang}",
                 "-P", self.download_dir
             ]
 
@@ -1501,7 +1558,7 @@ class YtCliGUI:
                 cmd += ["-o", "%(title)s.%(ext)s"]
 
             cookie_choice = self.var_cookies.get()
-            if cookie_choice != "Ninguna" and is_browser_installed(cookie_choice):
+            if cookie_choice not in ("Ninguna", "None") and is_browser_installed(cookie_choice):
                 cmd += ["--cookies-from-browser", cookie_choice.lower()]
 
             if mode == "video":
@@ -1519,7 +1576,7 @@ class YtCliGUI:
                 cmd += [
                     "-f", fmt,
                     "--merge-output-format", "mp4",
-                    "--ffmpeg-location", ffmpeg_cmd
+                    "--ffmpeg-location", bin_dir
                 ]
                 if embed_thumb:
                     cmd += ["--embed-thumbnail"]
@@ -1529,27 +1586,27 @@ class YtCliGUI:
                         "-f", "ba[ext=m4a]/ba/b",
                         "-x",
                         "--audio-format", "m4a",
-                        "--ffmpeg-location", ffmpeg_cmd
+                        "--ffmpeg-location", bin_dir
                     ]
                 elif audio_format == "opus":
                     cmd += [
                         "-f", "ba[ext=opus]/ba[ext=webm]/ba/b",
                         "-x",
                         "--audio-format", "opus",
-                        "--ffmpeg-location", ffmpeg_cmd
+                        "--ffmpeg-location", bin_dir
                     ]
                 elif audio_format == "flac":
                     cmd += [
                         "-x",
                         "--audio-format", "flac",
-                        "--ffmpeg-location", ffmpeg_cmd
+                        "--ffmpeg-location", bin_dir
                     ]
                 else:  # mp3
                     cmd += [
                         "-x",
                         "--audio-format", "mp3",
                         "--audio-quality", bitrate,
-                        "--ffmpeg-location", ffmpeg_cmd
+                        "--ffmpeg-location", bin_dir
                     ]
                 if embed_thumb:
                     cmd += ["--embed-thumbnail"]
@@ -1578,16 +1635,23 @@ class YtCliGUI:
                 if self.is_cancelled:
                     break
                 if proc.returncode != 0:
-                    self.msg_queue.put(("error", f"Error en elemento {idx}. Código: {proc.returncode}"))
+                    has_error = True
+                    last_error_msg = f"Item {idx} failed (exit code {proc.returncode})" if is_en else f"Error en elemento {idx}. Código: {proc.returncode}"
+                    self.msg_queue.put(("error", last_error_msg))
+                    break
             except Exception as e:
                 if not self.is_cancelled:
-                    self.msg_queue.put(("error", f"Error en descarga: {str(e)}"))
+                    has_error = True
+                    last_error_msg = f"Download error: {str(e)}" if is_en else f"Error en descarga: {str(e)}"
+                    self.msg_queue.put(("error", last_error_msg))
                 break
             finally:
                 self.active_process = None
 
         if self.is_cancelled:
             self.msg_queue.put(("download_cancelled", None))
+        elif has_error:
+            self.msg_queue.put(("download_error", last_error_msg))
         else:
             self.msg_queue.put(("download_done", None))
 
@@ -1619,14 +1683,22 @@ class YtCliGUI:
 
     def _subtitles_worker(self, urls):
         ytdlp_cmd = get_binary_path("yt-dlp")
+        ffmpeg_cmd = get_binary_path("ffmpeg")
+        bin_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
+        is_en = self.current_lang == "en"
+        has_error = False
+        last_error_msg = ""
+
         env = os.environ.copy()
+        env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
 
         for idx, url in enumerate(urls, start=1):
             if self.is_cancelled:
                 break
-            self.msg_queue.put(("status", f"Extrayendo subtítulos [{idx}/{len(urls)}]..."))
+            status_text = f"Extracting subtitles [{idx}/{len(urls)}]..." if is_en else f"Extrayendo subtítulos [{idx}/{len(urls)}]..."
+            self.msg_queue.put(("status", status_text))
 
             cmd = [
                 ytdlp_cmd,
@@ -1637,6 +1709,8 @@ class YtCliGUI:
                 "--write-subs",
                 "--write-auto-subs",
                 "--sub-lang", f"{self.current_lang},es,en",
+                "--extractor-args", f"youtube:lang={self.current_lang}",
+                "--ffmpeg-location", bin_dir,
                 "--sub-format", "srt/vtt/best",
                 "--convert-subs", "srt",
                 "--no-warnings",
@@ -1645,7 +1719,7 @@ class YtCliGUI:
             ]
 
             cookie_choice = self.var_cookies.get()
-            if cookie_choice != "Ninguna" and is_browser_installed(cookie_choice):
+            if cookie_choice not in ("Ninguna", "None") and is_browser_installed(cookie_choice):
                 cmd += ["--cookies-from-browser", cookie_choice.lower()]
 
             cmd.append(url)
@@ -1670,6 +1744,11 @@ class YtCliGUI:
 
                 proc.wait()
                 if self.is_cancelled:
+                    break
+                if proc.returncode != 0:
+                    has_error = True
+                    last_error_msg = f"Subtitle extraction item {idx} failed (code {proc.returncode})" if is_en else f"Error en elemento {idx} al extraer subtítulos (código {proc.returncode})"
+                    self.msg_queue.put(("error", last_error_msg))
                     break
 
                 # Convertir SRTs descargados a texto limpio (.txt)
@@ -1698,13 +1777,17 @@ class YtCliGUI:
                         pass
             except Exception as e:
                 if not self.is_cancelled:
-                    self.msg_queue.put(("error", f"Error en extracción: {str(e)}"))
+                    has_error = True
+                    last_error_msg = f"Extraction error: {str(e)}" if is_en else f"Error en extracción: {str(e)}"
+                    self.msg_queue.put(("error", last_error_msg))
                 break
             finally:
                 self.active_process = None
 
         if self.is_cancelled:
             self.msg_queue.put(("download_cancelled", None))
+        elif has_error:
+            self.msg_queue.put(("download_error", last_error_msg))
         else:
             self.msg_queue.put(("download_done", None))
 
@@ -1773,15 +1856,27 @@ class YtCliGUI:
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
-                    self.status_var.set("Descarga cancelada por el usuario.")
+                    is_en = self.current_lang == "en"
+                    self.status_var.set("Download cancelled by user." if is_en else "Descarga cancelada por el usuario.")
+                elif msg == "download_error":
+                    self.prog_bar.stop()
+                    self.btn_dl_video.config(state=tk.NORMAL)
+                    self.btn_dl_audio.config(state=tk.NORMAL)
+                    self.btn_extract_subs.config(state=tk.NORMAL)
+                    self.btn_cancel.config(state=tk.DISABLED)
+                    is_en = self.current_lang == "en"
+                    self.status_var.set("Operation finished with errors." if is_en else "Operación finalizada con errores.")
                 elif msg == "download_done":
                     self.prog_bar.stop()
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
-                    self.status_var.set("¡Descargas finalizadas!")
-                    messagebox.showinfo("Completado", f"Descargas guardadas en:\n{self.download_dir}")
+                    is_en = self.current_lang == "en"
+                    self.status_var.set("Downloads finished!" if is_en else "¡Descargas finalizadas!")
+                    title_done = "Completed" if is_en else "Completado"
+                    msg_done = f"Downloads saved to:\n{self.download_dir}" if is_en else f"Descargas guardadas en:\n{self.download_dir}"
+                    messagebox.showinfo(title_done, msg_done)
         except queue.Empty:
             pass
         finally:

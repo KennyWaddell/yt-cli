@@ -36,9 +36,9 @@ jobs:
           Write-Host "-> Descargando yt-dlp.exe oficial..."
           curl.exe -fSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -o "windows\bin\yt-dlp.exe"
 
-          Write-Host "-> Descargando ffmpeg.exe oficial (yt-dlp builds)..."
+          Write-Host "-> Descargando ffmpeg.exe y ffprobe.exe oficiales (yt-dlp builds)..."
           curl.exe -fSL "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -o "ffmpeg.zip"
-          7z e ffmpeg.zip -owindows\bin ffmpeg.exe -r -y
+          7z e ffmpeg.zip -owindows\bin ffmpeg.exe ffprobe.exe -r -y
           Remove-Item ffmpeg.zip -Force
 
           Write-Host "-> Descargando mpv.exe oficial (shinchiro winbuild)..."
@@ -57,7 +57,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist-package\bin
           Copy-Item windows\dist\YT-CLI.exe dist-package\
-          Copy-Item windows\LEEME_WINDOWS.txt dist-package\
+          Copy-Item windows\README.txt dist-package\
           Copy-Item windows\bin\*.exe dist-package\bin\
           if (Test-Path windows\bin\*.dll) {
             Copy-Item windows\bin\*.dll dist-package\bin\
@@ -73,7 +73,6 @@ jobs:
           name: YT-CLI-Windows-Portable
           path: |
             YT-CLI-Windows-Portable.zip
-            windows/dist/YT-CLI.exe
             SHA256.txt
 
       - name: Publicar en Release de GitHub (si es una version tag)
@@ -86,7 +85,6 @@ jobs:
           prerelease: false
           files: |
             YT-CLI-Windows-Portable.zip
-            windows/dist/YT-CLI.exe
             SHA256.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
