@@ -81,6 +81,48 @@ ARCHIVE_FILE="${CONFIG_DIR}/download_archive.txt"
 CONFIG_FILE="${CONFIG_DIR}/config"
 mkdir -p "$CONFIG_DIR" 2>/dev/null || true
 
+# Plantilla y lectura de opciones avanzadas para power-users
+EXTRA_YTDL_ARGS=()
+FILTER_ARGS=()
+
+ensure_config_file() {
+    mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+    if [ ! -f "$CONFIG_FILE" ] && [ -w "$CONFIG_DIR" ]; then
+        cat << 'EOF' > "$CONFIG_FILE" 2>/dev/null || true
+# ==============================================================================
+# YT-CLI Configuration File
+# ==============================================================================
+
+# Interface Language (es | en)
+# CLI_LANG="es"
+
+# --- ADVANCED OPTIONS (For power users) ---
+# Multi-connection download accelerator (requires aria2 package: sudo apt install aria2)
+# ENABLE_ARIA2=false
+# ARIA2_CONNECTIONS=8
+
+# Network retries for unstable connections
+# RETRY_WAIT=5
+# FRAGMENT_RETRIES=10
+EOF
+    fi
+}
+ensure_config_file
+
+if [ -f "$CONFIG_FILE" ]; then
+    if grep -Eq '^[[:space:]]*ENABLE_ARIA2=(true|1)' "$CONFIG_FILE" 2>/dev/null; then
+        if command -v aria2c >/dev/null 2>&1; then
+            aria2_conns=$(grep -E '^[[:space:]]*ARIA2_CONNECTIONS=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
+            [ -z "$aria2_conns" ] && aria2_conns="8"
+            EXTRA_YTDL_ARGS+=("--downloader" "aria2c" "--downloader-args" "aria2c:-s ${aria2_conns} -x ${aria2_conns} -k 1M")
+        fi
+    fi
+    if grep -Eq '^[[:space:]]*RETRY_WAIT=' "$CONFIG_FILE" 2>/dev/null; then
+        r_wait=$(grep -E '^[[:space:]]*RETRY_WAIT=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
+        [ -n "$r_wait" ] && EXTRA_YTDL_ARGS+=("--retry-wait" "$r_wait")
+    fi
+fi
+
 # Reiniciar registro de descargas previas (archive)
 clear_download_archive() {
     if [ -f "$ARCHIVE_FILE" ]; then
@@ -650,6 +692,7 @@ download_videos() {
     for t in "${targets[@]}"; do
         if ! "$BIN_YTDLP" \
             ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+            ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
             -c \
             --download-archive "${ARCHIVE_FILE}" \
             -f "${ytdl_fmt}" \
@@ -764,6 +807,7 @@ download_music() {
     for t in "${targets[@]}"; do
         if ! "$BIN_YTDLP" \
             ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+            ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
             -c \
             --download-archive "${ARCHIVE_FILE}" \
             "${AUDIO_YTDL_FLAGS[@]}" \
@@ -836,6 +880,7 @@ download_chapters() {
         if [ "$format_type" = "mp3" ]; then
             if ! "$BIN_YTDLP" \
                 ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
                 -c \
                 --download-archive "${ARCHIVE_FILE}" \
                 --split-chapters \
@@ -853,6 +898,7 @@ download_chapters() {
         elif [ "$format_type" = "m4a" ]; then
             if ! "$BIN_YTDLP" \
                 ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
                 -c \
                 --download-archive "${ARCHIVE_FILE}" \
                 --split-chapters \
@@ -871,6 +917,7 @@ download_chapters() {
             local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio/best[height<=${height}]/best"
             if ! "$BIN_YTDLP" \
                 ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
                 -c \
                 --download-archive "${ARCHIVE_FILE}" \
                 --split-chapters \
@@ -965,6 +1012,7 @@ download_section() {
             3|mp3)
                 if ! "$BIN_YTDLP" \
                     ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                    ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
                     -c \
                     --download-sections "$section_spec" \
                     --extract-audio \
@@ -981,6 +1029,7 @@ download_section() {
             4|m4a)
                 if ! "$BIN_YTDLP" \
                     ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                    ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
                     -c \
                     --download-sections "$section_spec" \
                     --extract-audio \
@@ -997,6 +1046,7 @@ download_section() {
                 local ytdl_fmt="bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio/best[height<=1080]/best"
                 if ! "$BIN_YTDLP" \
                     ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                    ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
                     -c \
                     --download-sections "$section_spec" \
                     -f "${ytdl_fmt}" \
@@ -1013,6 +1063,7 @@ download_section() {
                 local ytdl_fmt="bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[height<=720]/best"
                 if ! "$BIN_YTDLP" \
                     ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                    ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
                     -c \
                     --download-sections "$section_spec" \
                     -f "${ytdl_fmt}" \
@@ -1058,6 +1109,7 @@ download_transcript() {
     for t in "${targets[@]}"; do
         if ! "$BIN_YTDLP" \
             ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+            ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
             --skip-download \
             --write-subs \
             --write-auto-subs \
@@ -1152,6 +1204,7 @@ search_and_play() {
     local search_results
     search_results=$("$BIN_YTDLP" \
         ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+        ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"} \
         "${search_args[@]}" \
         --flat-playlist \
         --skip-download \
@@ -1407,6 +1460,34 @@ main() {
             --clear-archive)
                 clear_download_archive
                 exit 0
+                ;;
+            --min-views)
+                if [ $# -gt 1 ]; then
+                    FILTER_ARGS+=("--match-filter" "view_count >= $2")
+                    shift 2
+                else
+                    shift 1
+                fi
+                ;;
+            --max-duration)
+                if [ $# -gt 1 ]; then
+                    local dur="$2"
+                    if [[ "$dur" =~ ^([0-9]+)m$ ]]; then
+                        dur=$((${BASH_REMATCH[1]} * 60))
+                    fi
+                    FILTER_ARGS+=("--match-filter" "duration <= $dur")
+                    shift 2
+                else
+                    shift 1
+                fi
+                ;;
+            --match-filter)
+                if [ $# -gt 1 ]; then
+                    FILTER_ARGS+=("--match-filter" "$2")
+                    shift 2
+                else
+                    shift 1
+                fi
                 ;;
             -u|--update|--update-ytdlp)
                 update_ytdlp

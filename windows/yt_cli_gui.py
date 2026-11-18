@@ -12,6 +12,8 @@ import threading
 import queue
 import json
 import time
+import glob
+import re
 import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -237,7 +239,8 @@ GUI_STRINGS = {
         "play_video": "▶ Ver Vídeo",
         "play_audio": "♫ Escuchar Audio",
         "download_video": "↓ Descargar MP4",
-        "download_audio": "♪ Descargar MP3",
+        "download_audio": "♪ Descargar Audio",
+        "extract_subs": "📝 Subtítulos",
         "stop": "■ Detener",
         "ready": "Listo."
     },
@@ -268,7 +271,8 @@ GUI_STRINGS = {
         "play_video": "▶ Watch Video",
         "play_audio": "♫ Listen Audio",
         "download_video": "↓ Download MP4",
-        "download_audio": "♪ Download MP3",
+        "download_audio": "♪ Download Audio",
+        "extract_subs": "📝 Subtitles",
         "stop": "■ Stop",
         "ready": "Ready."
     }
@@ -613,7 +617,7 @@ class YtCliGUI:
 
         self.btn_dl_audio = tk.Button(
             self.action_bar,
-            text="♪ Descargar MP3",
+            text="♪ Descargar Audio",
             command=self.prompt_audio_download,
             font=("sans-serif", 9),
             relief="flat",
@@ -623,6 +627,19 @@ class YtCliGUI:
             cursor="hand2"
         )
         self.btn_dl_audio.pack(side=tk.LEFT, padx=(0, 8))
+
+        self.btn_extract_subs = tk.Button(
+            self.action_bar,
+            text="📝 Subtítulos",
+            command=self.start_subtitles_download,
+            font=("sans-serif", 9),
+            relief="flat",
+            bd=0,
+            padx=12,
+            pady=6,
+            cursor="hand2"
+        )
+        self.btn_extract_subs.pack(side=tk.LEFT, padx=(0, 8))
 
         self.btn_cancel = tk.Button(
             self.action_bar,
@@ -704,7 +721,7 @@ class YtCliGUI:
         self.entry_query.configure(bg=pal["entry_bg"], fg=pal["entry_fg"], insertbackground=pal["entry_fg"], highlightbackground=pal["card_border"])
 
         # Botones secundarios
-        for btn in [self.btn_paste, self.btn_clear, self.btn_history, self.btn_hist_opts, self.btn_browse, self.btn_play_aud, self.btn_dl_video, self.btn_dl_audio, self.btn_cancel]:
+        for btn in [self.btn_paste, self.btn_clear, self.btn_history, self.btn_hist_opts, self.btn_browse, self.btn_play_aud, self.btn_dl_video, self.btn_dl_audio, self.btn_extract_subs, self.btn_cancel]:
             btn.configure(bg=pal["btn_secondary_bg"], fg=pal["btn_secondary_fg"], activebackground=pal["btn_hover"], activeforeground="#ffffff")
 
         # Botones primarios
@@ -778,6 +795,7 @@ class YtCliGUI:
         self.btn_play_aud.config(text=s["play_audio"])
         self.btn_dl_video.config(text=s["download_video"])
         self.btn_dl_audio.config(text=s["download_audio"])
+        self.btn_extract_subs.config(text=s["extract_subs"])
         self.btn_cancel.config(text=s["stop"])
 
     def toggle_language(self):
@@ -1028,7 +1046,7 @@ class YtCliGUI:
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl_title = tk.Label(dialog, text="YT-CLI v1.3", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl_title = tk.Label(dialog, text="YT-CLI v1.4", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl_title.pack(pady=(14, 2))
 
         is_en = self.current_lang == "en"
@@ -1243,12 +1261,16 @@ class YtCliGUI:
     def prompt_video_download(self):
         urls = self.get_selected_urls()
         if not urls:
-            messagebox.showinfo("Descargar Vídeo", "Selecciona al menos un vídeo de la lista.")
+            is_en = self.current_lang == "en"
+            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
+            title = "Download Video" if is_en else "Descargar Vídeo"
+            messagebox.showinfo(title, msg)
             return
 
+        is_en = self.current_lang == "en"
         dialog = tk.Toplevel(self.root)
-        dialog.title("Opciones de Descarga de Vídeo (MP4)")
-        dialog.geometry("380x280")
+        dialog.title("Video Download Options (MP4)" if is_en else "Opciones de Descarga de Vídeo (MP4)")
+        dialog.geometry("420x410")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -1256,49 +1278,81 @@ class YtCliGUI:
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl = tk.Label(dialog, text="Opciones de Descarga MP4", font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
-        lbl.pack(pady=(12, 8))
+        lbl = tk.Label(dialog, text="Video Download Options (MP4)" if is_en else "Opciones de Descarga MP4", font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl.pack(pady=(12, 6))
 
         row_q = tk.Frame(dialog, bg=pal["card_bg"])
-        row_q.pack(fill=tk.X, padx=24, pady=4)
-        tk.Label(row_q, text="Resolución:", font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        row_q.pack(fill=tk.X, padx=24, pady=3)
+        tk.Label(row_q, text="Resolution:" if is_en else "Resolución:", font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
         var_q = tk.StringVar(value=self.var_quality.get())
         cb_q = ttk.Combobox(row_q, textvariable=var_q, values=["360", "480", "720", "1080"], width=8, state="readonly")
         cb_q.pack(side=tk.RIGHT)
 
         row_fps = tk.Frame(dialog, bg=pal["card_bg"])
-        row_fps.pack(fill=tk.X, padx=24, pady=4)
-        tk.Label(row_fps, text="Tasa de cuadros (FPS):", font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        row_fps.pack(fill=tk.X, padx=24, pady=3)
+        tk.Label(row_fps, text="Frame rate (FPS):" if is_en else "Tasa de cuadros (FPS):", font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
         var_f = tk.StringVar(value=self.var_fps.get())
         cb_f = ttk.Combobox(row_fps, textvariable=var_f, values=["30", "60", "Auto"], width=8, state="readonly")
         cb_f.pack(side=tk.RIGHT)
 
         var_thumb = tk.BooleanVar(value=True)
-        cb_th = tk.Checkbutton(dialog, text="Incrustar carátula en el MP4", variable=var_thumb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
-        cb_th.pack(pady=(8, 4), padx=22, anchor="w")
+        cb_th = tk.Checkbutton(dialog, text="Embed thumbnail in MP4" if is_en else "Incrustar carátula en el MP4", variable=var_thumb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_th.pack(pady=(6, 2), padx=22, anchor="w")
 
-        lbl_info = tk.Label(dialog, text="Contenedor: MP4 universal (H.264 + AAC)", font=("sans-serif", 8, "italic"), bg=pal["card_bg"], fg=pal["fg_muted"])
-        lbl_info.pack(pady=(0, 14))
+        var_split = tk.BooleanVar(value=False)
+        cb_split = tk.Checkbutton(dialog, text="Split by chapters (--split-chapters)" if is_en else "Dividir en capítulos automáticos", variable=var_split, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_split.pack(pady=2, padx=22, anchor="w")
+
+        trim_frame = tk.LabelFrame(dialog, text="Trim Time Section" if is_en else "Recortar fragmento de tiempo", font=("sans-serif", 8, "bold"), bg=pal["card_bg"], fg=pal["fg_muted"], bd=1, padx=8, pady=4)
+        trim_frame.pack(fill=tk.X, padx=22, pady=(6, 10))
+
+        var_trim = tk.BooleanVar(value=False)
+        cb_trim = tk.Checkbutton(trim_frame, text="Enable time trimming" if is_en else "Activar recorte por tiempo", variable=var_trim, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_trim.pack(anchor="w", pady=(0, 4))
+
+        trim_inputs = tk.Frame(trim_frame, bg=pal["card_bg"])
+        trim_inputs.pack(fill=tk.X)
+
+        tk.Label(trim_inputs, text="From (MM:SS):" if is_en else "Desde (MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        ent_start = tk.Entry(trim_inputs, width=7, font=("sans-serif", 9), bd=1)
+        ent_start.insert(0, "00:00")
+        ent_start.pack(side=tk.LEFT, padx=(4, 12))
+
+        tk.Label(trim_inputs, text="To (MM:SS):" if is_en else "Hasta (MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        ent_end = tk.Entry(trim_inputs, width=7, font=("sans-serif", 9), bd=1)
+        ent_end.insert(0, "00:00")
+        ent_end.pack(side=tk.LEFT, padx=4)
 
         def confirm():
             q = var_q.get()
             fps = var_f.get()
             thumb = var_thumb.get()
+            split = var_split.get()
+            trim_spec = ""
+            if var_trim.get():
+                s_val = ent_start.get().strip()
+                e_val = ent_end.get().strip()
+                if s_val and e_val and (s_val != "00:00" or e_val != "00:00"):
+                    trim_spec = f"{s_val}-{e_val}"
             dialog.destroy()
-            self.start_download(mode="video", quality=q, fps=fps, embed_thumb=thumb)
+            self.start_download(mode="video", quality=q, fps=fps, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec)
 
-        btn = tk.Button(dialog, text="Iniciar Descarga", command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=4, cursor="hand2")
-        btn.pack()
+        btn = tk.Button(dialog, text="Start Download" if is_en else "Iniciar Descarga", command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=5, cursor="hand2")
+        btn.pack(pady=(4, 0))
 
     def prompt_audio_download(self):
         urls = self.get_selected_urls()
         if not urls:
-            messagebox.showinfo("Descarga de Audio", "Selecciona al menos un vídeo de la lista.")
+            is_en = self.current_lang == "en"
+            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
+            title = "Download Audio" if is_en else "Descarga de Audio"
+            messagebox.showinfo(title, msg)
             return
 
+        is_en = self.current_lang == "en"
         dialog = tk.Toplevel(self.root)
-        dialog.title("Opciones de Audio MP3")
-        dialog.geometry("340x210")
+        dialog.title("Audio Download Options" if is_en else "Opciones de Descarga de Audio")
+        dialog.geometry("420x460")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -1306,57 +1360,117 @@ class YtCliGUI:
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl = tk.Label(dialog, text="Calidad de Audio MP3:", font=("sans-serif", 9, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl = tk.Label(dialog, text="Audio Download Options" if is_en else "Opciones de Descarga de Audio", font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl.pack(pady=(12, 6))
 
+        row_fmt = tk.Frame(dialog, bg=pal["card_bg"])
+        row_fmt.pack(fill=tk.X, padx=24, pady=3)
+        tk.Label(row_fmt, text="Audio Format:" if is_en else "Formato de audio:", font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        var_afmt = tk.StringVar(value="MP3")
+        cb_afmt = ttk.Combobox(row_fmt, textvariable=var_afmt, values=["MP3", "M4A", "Opus", "FLAC"], width=8, state="readonly")
+        cb_afmt.pack(side=tk.RIGHT)
+
+        frame_mp3 = tk.Frame(dialog, bg=pal["card_bg"])
+        frame_mp3.pack(fill=tk.X, padx=24, pady=4)
+        tk.Label(frame_mp3, text="MP3 Bitrate:" if is_en else "Calidad MP3:", font=("sans-serif", 8, "bold"), bg=pal["card_bg"], fg=pal["fg_muted"]).pack(anchor="w", pady=(0, 2))
         var_bitrate = tk.StringVar(value="320k")
-        for br, label in [("320k", "320 kbps (Máxima fidelidad)"), ("192k", "192 kbps (Estándar recomendado)"), ("128k", "128 kbps (Ahorro de espacio)")]:
-            rb = tk.Radiobutton(dialog, text=label, variable=var_bitrate, value=br, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
-            rb.pack(anchor="w", padx=30)
+        for br, label in [("320k", "320 kbps (Máxima fidelidad)" if not is_en else "320 kbps (Max quality)"),
+                          ("192k", "192 kbps (Recomendado)" if not is_en else "192 kbps (Standard)"),
+                          ("128k", "128 kbps (Ahorro de espacio)" if not is_en else "128 kbps (Lightweight)")]:
+            rb = tk.Radiobutton(frame_mp3, text=label, variable=var_bitrate, value=br, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+            rb.pack(anchor="w", padx=10)
+
+        def on_fmt_change(event=None):
+            fmt_val = var_afmt.get().upper()
+            state = tk.NORMAL if fmt_val == "MP3" else tk.DISABLED
+            for child in frame_mp3.winfo_children():
+                if isinstance(child, tk.Radiobutton):
+                    child.configure(state=state)
+
+        cb_afmt.bind("<<ComboboxSelected>>", on_fmt_change)
 
         var_thumb = tk.BooleanVar(value=True)
-        cb = tk.Checkbutton(dialog, text="Incrustar carátula oficial en el archivo", variable=var_thumb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
-        cb.pack(pady=(8, 12))
+        cb_th = tk.Checkbutton(dialog, text="Embed official cover art" if is_en else "Incrustar carátula oficial en el archivo", variable=var_thumb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_th.pack(pady=(4, 2), padx=22, anchor="w")
+
+        var_split = tk.BooleanVar(value=False)
+        cb_split = tk.Checkbutton(dialog, text="Split tracks/chapters (--split-chapters)" if is_en else "Dividir en pistas/capítulos automáticos", variable=var_split, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_split.pack(pady=2, padx=22, anchor="w")
+
+        trim_frame = tk.LabelFrame(dialog, text="Trim Time Section" if is_en else "Recortar fragmento de tiempo", font=("sans-serif", 8, "bold"), bg=pal["card_bg"], fg=pal["fg_muted"], bd=1, padx=8, pady=4)
+        trim_frame.pack(fill=tk.X, padx=22, pady=(6, 10))
+
+        var_trim = tk.BooleanVar(value=False)
+        cb_trim = tk.Checkbutton(trim_frame, text="Enable time trimming" if is_en else "Activar recorte por tiempo", variable=var_trim, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_trim.pack(anchor="w", pady=(0, 4))
+
+        trim_inputs = tk.Frame(trim_frame, bg=pal["card_bg"])
+        trim_inputs.pack(fill=tk.X)
+
+        tk.Label(trim_inputs, text="From (MM:SS):" if is_en else "Desde (MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        ent_start = tk.Entry(trim_inputs, width=7, font=("sans-serif", 9), bd=1)
+        ent_start.insert(0, "00:00")
+        ent_start.pack(side=tk.LEFT, padx=(4, 12))
+
+        tk.Label(trim_inputs, text="To (MM:SS):" if is_en else "Hasta (MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        ent_end = tk.Entry(trim_inputs, width=7, font=("sans-serif", 9), bd=1)
+        ent_end.insert(0, "00:00")
+        ent_end.pack(side=tk.LEFT, padx=4)
 
         def confirm():
+            fmt = var_afmt.get().lower()
             br = var_bitrate.get()
             thumb = var_thumb.get()
+            split = var_split.get()
+            trim_spec = ""
+            if var_trim.get():
+                s_val = ent_start.get().strip()
+                e_val = ent_end.get().strip()
+                if s_val and e_val and (s_val != "00:00" or e_val != "00:00"):
+                    trim_spec = f"{s_val}-{e_val}"
             dialog.destroy()
-            self.start_download(mode="audio", bitrate=br, embed_thumb=thumb)
+            self.start_download(mode="audio", audio_format=fmt, bitrate=br, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec)
 
-        btn = tk.Button(dialog, text="Iniciar Descarga", command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=12, pady=4, cursor="hand2")
-        btn.pack()
+        btn = tk.Button(dialog, text="Start Download" if is_en else "Iniciar Descarga", command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=5, cursor="hand2")
+        btn.pack(pady=(4, 0))
 
-    def start_download(self, mode="video", quality="720", fps="30", bitrate="320k", embed_thumb=True):
+    def start_download(self, mode="video", quality="720", fps="30", audio_format="mp3", bitrate="320k", embed_thumb=True, split_chapters=False, trim_section=""):
         urls = self.get_selected_urls()
         if not urls:
-            messagebox.showinfo("Descargar", "Selecciona al menos un vídeo de la lista.")
+            is_en = self.current_lang == "en"
+            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
+            title = "Download" if is_en else "Descargar"
+            messagebox.showinfo(title, msg)
             return
 
         self.is_cancelled = False
         self.btn_dl_video.config(state=tk.DISABLED)
         self.btn_dl_audio.config(state=tk.DISABLED)
+        self.btn_extract_subs.config(state=tk.DISABLED)
         self.btn_cancel.config(state=tk.NORMAL)
         self.prog_bar.start(10)
-        self.status_var.set(f"Iniciando descarga ({len(urls)} elemento(s))...")
+        is_en = self.current_lang == "en"
+        msg = f"Starting download ({len(urls)} items)..." if is_en else f"Iniciando descarga ({len(urls)} elemento(s))..."
+        self.status_var.set(msg)
 
         thread = threading.Thread(
             target=self._download_worker,
-            args=(urls, mode, quality, fps, bitrate, embed_thumb),
+            args=(urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section),
             daemon=True
         )
         thread.start()
 
-    def _download_worker(self, urls, mode, quality, fps, bitrate, embed_thumb):
+    def _download_worker(self, urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section):
         ytdlp_cmd = get_binary_path("yt-dlp")
         ffmpeg_cmd = get_binary_path("ffmpeg")
+        archive_file = os.path.join(get_config_dir(), "download_archive.txt")
 
         for idx, url in enumerate(urls, start=1):
             if self.is_cancelled:
                 break
 
             self.msg_queue.put(("status", f"Descargando [{idx}/{len(urls)}]: conectando..."))
-            
+
             env = os.environ.copy()
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUTF8"] = "1"
@@ -1365,10 +1479,26 @@ class YtCliGUI:
                 "--encoding", "utf-8",
                 "-c",
                 "--no-mtime",
+                "--download-archive", archive_file,
                 "--extractor-args", "youtube:lang=es",
-                "-P", self.download_dir,
-                "-o", "%(title)s.%(ext)s"
+                "-P", self.download_dir
             ]
+
+            if split_chapters:
+                cmd += [
+                    "--split-chapters",
+                    "-o", "%(title)s/%(section_number)02d - %(section_title)s.%(ext)s"
+                ]
+            elif trim_section:
+                clean_s = trim_section.split("-")[0].replace(":", "")
+                clean_e = trim_section.split("-")[1].replace(":", "") if "-" in trim_section else "end"
+                cmd += [
+                    "--download-sections", f"*{trim_section}",
+                    "--force-keyframes-at-cuts",
+                    "-o", f"%(title)s [{clean_s}_{clean_e}].%(ext)s"
+                ]
+            else:
+                cmd += ["-o", "%(title)s.%(ext)s"]
 
             cookie_choice = self.var_cookies.get()
             if cookie_choice != "Ninguna" and is_browser_installed(cookie_choice):
@@ -1394,12 +1524,33 @@ class YtCliGUI:
                 if embed_thumb:
                     cmd += ["--embed-thumbnail"]
             else:
-                cmd += [
-                    "-x",
-                    "--audio-format", "mp3",
-                    "--audio-quality", bitrate,
-                    "--ffmpeg-location", ffmpeg_cmd
-                ]
+                if audio_format == "m4a":
+                    cmd += [
+                        "-f", "ba[ext=m4a]/ba/b",
+                        "-x",
+                        "--audio-format", "m4a",
+                        "--ffmpeg-location", ffmpeg_cmd
+                    ]
+                elif audio_format == "opus":
+                    cmd += [
+                        "-f", "ba[ext=opus]/ba[ext=webm]/ba/b",
+                        "-x",
+                        "--audio-format", "opus",
+                        "--ffmpeg-location", ffmpeg_cmd
+                    ]
+                elif audio_format == "flac":
+                    cmd += [
+                        "-x",
+                        "--audio-format", "flac",
+                        "--ffmpeg-location", ffmpeg_cmd
+                    ]
+                else:  # mp3
+                    cmd += [
+                        "-x",
+                        "--audio-format", "mp3",
+                        "--audio-quality", bitrate,
+                        "--ffmpeg-location", ffmpeg_cmd
+                    ]
                 if embed_thumb:
                     cmd += ["--embed-thumbnail"]
 
@@ -1440,6 +1591,123 @@ class YtCliGUI:
         else:
             self.msg_queue.put(("download_done", None))
 
+    def start_subtitles_download(self):
+        urls = self.get_selected_urls()
+        if not urls:
+            is_en = self.current_lang == "en"
+            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
+            title = "Subtitles" if is_en else "Subtítulos"
+            messagebox.showinfo(title, msg)
+            return
+
+        self.is_cancelled = False
+        self.btn_dl_video.config(state=tk.DISABLED)
+        self.btn_dl_audio.config(state=tk.DISABLED)
+        self.btn_extract_subs.config(state=tk.DISABLED)
+        self.btn_cancel.config(state=tk.NORMAL)
+        self.prog_bar.start(10)
+        is_en = self.current_lang == "en"
+        msg = f"Extracting subtitles/transcripts ({len(urls)} items)..." if is_en else f"Extrayendo subtítulos y transcripción ({len(urls)} elemento(s))..."
+        self.status_var.set(msg)
+
+        thread = threading.Thread(
+            target=self._subtitles_worker,
+            args=(urls,),
+            daemon=True
+        )
+        thread.start()
+
+    def _subtitles_worker(self, urls):
+        ytdlp_cmd = get_binary_path("yt-dlp")
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+
+        for idx, url in enumerate(urls, start=1):
+            if self.is_cancelled:
+                break
+            self.msg_queue.put(("status", f"Extrayendo subtítulos [{idx}/{len(urls)}]..."))
+
+            cmd = [
+                ytdlp_cmd,
+                "--encoding", "utf-8",
+                "-c",
+                "--no-mtime",
+                "--skip-download",
+                "--write-subs",
+                "--write-auto-subs",
+                "--sub-lang", f"{self.current_lang},es,en",
+                "--sub-format", "srt/vtt/best",
+                "--convert-subs", "srt",
+                "--no-warnings",
+                "-P", self.download_dir,
+                "-o", "%(title)s.%(ext)s"
+            ]
+
+            cookie_choice = self.var_cookies.get()
+            if cookie_choice != "Ninguna" and is_browser_installed(cookie_choice):
+                cmd += ["--cookies-from-browser", cookie_choice.lower()]
+
+            cmd.append(url)
+
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=env,
+                    **SUBPROCESS_FLAGS
+                )
+                self.active_process = proc
+
+                for line in proc.stdout:
+                    if "[info]" in line or "[download]" in line:
+                        clean_line = line.strip().replace("[download]", "").strip()
+                        self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {clean_line}"))
+
+                proc.wait()
+                if self.is_cancelled:
+                    break
+
+                # Convertir SRTs descargados a texto limpio (.txt)
+                srt_files = glob.glob(os.path.join(self.download_dir, "*.srt"))
+                for srt_path in srt_files:
+                    txt_path = os.path.splitext(srt_path)[0] + ".txt"
+                    if os.path.exists(txt_path):
+                        continue
+                    try:
+                        with open(srt_path, "r", encoding="utf-8", errors="replace") as f:
+                            lines = f.readlines()
+                        clean_text = []
+                        last_line = ""
+                        for line in lines:
+                            l = line.strip()
+                            if not l or l.isdigit() or "-->" in l:
+                                continue
+                            l = re.sub(r"<[^>]+>", "", l).strip()
+                            if l and l != last_line:
+                                clean_text.append(l)
+                                last_line = l
+                        if clean_text:
+                            with open(txt_path, "w", encoding="utf-8") as out:
+                                out.write("\n".join(clean_text) + "\n")
+                    except Exception:
+                        pass
+            except Exception as e:
+                if not self.is_cancelled:
+                    self.msg_queue.put(("error", f"Error en extracción: {str(e)}"))
+                break
+            finally:
+                self.active_process = None
+
+        if self.is_cancelled:
+            self.msg_queue.put(("download_cancelled", None))
+        else:
+            self.msg_queue.put(("download_done", None))
+
     def cancel_process(self):
         self.is_cancelled = True
         if self.mpv_process and self.mpv_process.poll() is None:
@@ -1461,6 +1729,7 @@ class YtCliGUI:
         self.btn_cancel.config(state=tk.DISABLED)
         self.btn_dl_video.config(state=tk.NORMAL)
         self.btn_dl_audio.config(state=tk.NORMAL)
+        self.btn_extract_subs.config(state=tk.NORMAL)
         self.prog_bar.stop()
 
     def on_close(self):
@@ -1502,12 +1771,14 @@ class YtCliGUI:
                     self.prog_bar.stop()
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
+                    self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
                     self.status_var.set("Descarga cancelada por el usuario.")
                 elif msg == "download_done":
                     self.prog_bar.stop()
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
+                    self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
                     self.status_var.set("¡Descargas finalizadas!")
                     messagebox.showinfo("Completado", f"Descargas guardadas en:\n{self.download_dir}")
