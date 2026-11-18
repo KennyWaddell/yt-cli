@@ -119,7 +119,13 @@ def load_settings():
                 return json.load(f)
         except Exception:
             pass
-    return {"lang": "es", "theme": "dark"}
+    try:
+        import locale
+        sys_loc = (locale.getdefaultlocale()[0] or "").lower()
+        default_lang = "es" if sys_loc.startswith("es") else "en"
+    except Exception:
+        default_lang = "en"
+    return {"lang": default_lang, "theme": "dark"}
 
 def save_settings(settings):
     path = get_settings_file()
@@ -207,61 +213,63 @@ GUI_STRINGS = {
     "es": {
         "title": "YT-CLI",
         "subtitle": "Cliente Multimedia Ultraligero",
-        "theme_light": "☀️ Modo Claro",
-        "theme_dark": "🌙 Modo Oscuro",
-        "credits": "ℹ️ Créditos",
-        "lang_btn": "🌐 English",
-        "paste": "📋 Pegar",
-        "clear": "🧹 Limpiar",
-        "search": "🔍 Buscar",
-        "history": "📜 Historial",
-        "history_back": "🔍 Volver a Búsqueda",
+        "theme_light": "☀ Modo Claro",
+        "theme_dark": "☾ Modo Oscuro",
+        "credits": "Créditos",
+        "lang_btn": "English",
+        "paste": "Pegar",
+        "clear": "Limpiar",
+        "search": "Buscar",
+        "history": "Historial",
+        "history_back": "Volver a Búsqueda",
+        "history_opts": "Opciones",
         "results_label": "Resultados:",
         "quality_label": "Calidad:",
         "fps_label": "FPS:",
         "cookies_label": "Cookies:",
         "dest_label": "Destino:",
-        "change_folder": "📁 Cambiar",
-        "table_hint": "Resultados (haz clic en las columnas para ordenar • doble clic para ver)",
+        "change_folder": "Examinar",
+        "table_hint": "Resultados (clic en encabezados para ordenar • doble clic para reproducir)",
         "col_title": "Título ↕",
         "col_channel": "Canal ↕",
         "col_duration": "Duración ↕",
         "col_id": "ID / Enlace",
         "play_video": "▶ Ver Vídeo",
-        "play_audio": "🎧 Escuchar Audio",
-        "download_video": "🎬 Descargar MP4",
-        "download_audio": "🎵 Descargar MP3",
-        "stop": "⏹ Detener",
+        "play_audio": "♫ Escuchar Audio",
+        "download_video": "↓ Descargar MP4",
+        "download_audio": "♪ Descargar MP3",
+        "stop": "■ Detener",
         "ready": "Listo."
     },
     "en": {
         "title": "YT-CLI",
         "subtitle": "Ultralight Multimedia Client",
-        "theme_light": "☀️ Light Mode",
-        "theme_dark": "🌙 Dark Mode",
-        "credits": "ℹ️ Credits",
-        "lang_btn": "🌐 Español",
-        "paste": "📋 Paste",
-        "clear": "🧹 Clear",
-        "search": "🔍 Search",
-        "history": "📜 History",
-        "history_back": "🔍 Back to Search",
+        "theme_light": "☀ Light Mode",
+        "theme_dark": "☾ Dark Mode",
+        "credits": "Credits",
+        "lang_btn": "Español",
+        "paste": "Paste",
+        "clear": "Clear",
+        "search": "Search",
+        "history": "History",
+        "history_back": "Back to Search",
+        "history_opts": "Options",
         "results_label": "Results:",
         "quality_label": "Quality:",
         "fps_label": "FPS:",
         "cookies_label": "Cookies:",
         "dest_label": "Destination:",
-        "change_folder": "📁 Browse",
-        "table_hint": "Results (click column headers to sort • double click to watch)",
+        "change_folder": "Browse",
+        "table_hint": "Results (click headers to sort • double click to play)",
         "col_title": "Title ↕",
         "col_channel": "Channel ↕",
         "col_duration": "Duration ↕",
         "col_id": "ID / Link",
         "play_video": "▶ Watch Video",
-        "play_audio": "🎧 Listen Audio",
-        "download_video": "🎬 Download MP4",
-        "download_audio": "🎵 Download MP3",
-        "stop": "⏹ Stop",
+        "play_audio": "♫ Listen Audio",
+        "download_video": "↓ Download MP4",
+        "download_audio": "♪ Download MP3",
+        "stop": "■ Stop",
         "ready": "Ready."
     }
 }
@@ -366,7 +374,7 @@ class YtCliGUI:
 
         self.btn_theme_toggle = tk.Button(
             self.header_frame,
-            text="☀️ Modo Claro",
+            text="☀ Modo Claro",
             font=("sans-serif", 8, "bold"),
             command=self.toggle_theme,
             relief="flat",
@@ -379,7 +387,7 @@ class YtCliGUI:
 
         self.btn_about = tk.Button(
             self.header_frame,
-            text="ℹ️ Créditos",
+            text="Créditos",
             font=("sans-serif", 8, "bold"),
             command=self.open_about_dialog,
             relief="flat",
@@ -392,7 +400,7 @@ class YtCliGUI:
 
         self.btn_lang_toggle = tk.Button(
             self.header_frame,
-            text="🌐 English",
+            text="English",
             font=("sans-serif", 8, "bold"),
             command=self.toggle_language,
             relief="flat",
@@ -416,7 +424,7 @@ class YtCliGUI:
 
         self.btn_paste = tk.Button(
             search_inner,
-            text="📋 Pegar",
+            text="Pegar",
             command=self.paste_clipboard,
             font=("sans-serif", 9),
             relief="flat",
@@ -429,7 +437,7 @@ class YtCliGUI:
 
         self.btn_clear = tk.Button(
             search_inner,
-            text="🧹 Limpiar",
+            text="Limpiar",
             command=self.clear_all,
             font=("sans-serif", 9),
             relief="flat",
@@ -442,7 +450,7 @@ class YtCliGUI:
 
         self.btn_search = tk.Button(
             search_inner,
-            text="🔍 Buscar",
+            text="Buscar",
             command=self.start_search,
             font=("sans-serif", 9, "bold"),
             relief="flat",
@@ -455,7 +463,7 @@ class YtCliGUI:
 
         self.btn_history = tk.Button(
             search_inner,
-            text="📜 Historial",
+            text="Historial",
             command=self.toggle_history_view,
             font=("sans-serif", 9),
             relief="flat",
@@ -468,7 +476,7 @@ class YtCliGUI:
 
         self.btn_hist_opts = tk.Button(
             search_inner,
-            text="⚙️",
+            text="Opciones",
             command=self.open_history_settings,
             font=("sans-serif", 9),
             relief="flat",
@@ -515,7 +523,7 @@ class YtCliGUI:
 
         self.btn_browse = tk.Button(
             params_row,
-            text="📁 Cambiar",
+            text="Examinar",
             command=self.browse_folder,
             font=("sans-serif", 8),
             relief="flat",
@@ -579,7 +587,7 @@ class YtCliGUI:
 
         self.btn_play_aud = tk.Button(
             self.action_bar,
-            text="🎧 Escuchar Audio",
+            text="♫ Escuchar Audio",
             command=lambda: self.play_selected(audio_only=True),
             font=("sans-serif", 9),
             relief="flat",
@@ -592,7 +600,7 @@ class YtCliGUI:
 
         self.btn_dl_video = tk.Button(
             self.action_bar,
-            text="🎬 Descargar MP4",
+            text="↓ Descargar MP4",
             command=self.prompt_video_download,
             font=("sans-serif", 9),
             relief="flat",
@@ -605,7 +613,7 @@ class YtCliGUI:
 
         self.btn_dl_audio = tk.Button(
             self.action_bar,
-            text="🎵 Descargar MP3",
+            text="♪ Descargar MP3",
             command=self.prompt_audio_download,
             font=("sans-serif", 9),
             relief="flat",
@@ -618,7 +626,7 @@ class YtCliGUI:
 
         self.btn_cancel = tk.Button(
             self.action_bar,
-            text="⏹ Detener",
+            text="■ Detener",
             command=self.cancel_process,
             font=("sans-serif", 9),
             relief="flat",
@@ -653,10 +661,11 @@ class YtCliGUI:
         self.status_bar.configure(bg=pal["bg"])
 
         # Logo y cabecera
+        s = GUI_STRINGS.get(self.current_lang, GUI_STRINGS["en"])
         self.logo_lbl.configure(bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"])
         self.subtitle_lbl.configure(bg=pal["bg"], fg=pal["fg_muted"])
         self.btn_theme_toggle.configure(
-            text="☀️ Modo Claro" if theme_key == "dark" else "🌙 Modo Oscuro",
+            text=s["theme_light"] if theme_key == "dark" else s["theme_dark"],
             bg=pal["btn_secondary_bg"],
             fg=pal["btn_secondary_fg"]
         )
@@ -744,7 +753,7 @@ class YtCliGUI:
         save_settings(settings)
 
     def update_ui_language(self):
-        s = GUI_STRINGS.get(self.current_lang, GUI_STRINGS["es"])
+        s = GUI_STRINGS.get(self.current_lang, GUI_STRINGS["en"])
         self.subtitle_lbl.config(text=s["subtitle"])
         self.btn_lang_toggle.config(text=s["lang_btn"])
         self.btn_theme_toggle.config(text=s["theme_light"] if self.current_theme == "dark" else s["theme_dark"])
@@ -753,6 +762,7 @@ class YtCliGUI:
         self.btn_clear.config(text=s["clear"])
         self.btn_search.config(text=s["search"])
         self.btn_history.config(text=s["history_back"] if self.is_viewing_history else s["history"])
+        self.btn_hist_opts.config(text=s.get("history_opts", "Opciones"))
         self.lbl_limit.config(text=s["results_label"])
         self.lbl_qual.config(text=s["quality_label"])
         self.lbl_fps.config(text=s["fps_label"])
@@ -790,7 +800,7 @@ class YtCliGUI:
                 self.entry_query.insert(0, clip)
                 item_id = self.tree.insert("", tk.END, values=("Enlace multimedia detectado", "Enlace Web", "--:--", clip), tags=("evenrow",))
                 self.tree.selection_set(item_id)
-                self.status_var.set("📋 Enlace detectado del portapapeles. Listo para Ver Vídeo, Escuchar Audio o Descargar.")
+                self.status_var.set("Enlace detectado del portapapeles. Listo para Ver Vídeo, Escuchar Audio o Descargar.")
         except Exception:
             pass
 
@@ -807,7 +817,7 @@ class YtCliGUI:
                     self.tree.delete(item)
                 item_id = self.tree.insert("", tk.END, values=("Enlace pegado", "Enlace Web", "--:--", clip), tags=("evenrow",))
                 self.tree.selection_set(item_id)
-                self.status_var.set("📋 Enlace pegado y seleccionado. Elige Ver Vídeo, Escuchar Audio o Descargar.")
+                self.status_var.set("Enlace pegado y seleccionado. Elige Ver Vídeo, Escuchar Audio o Descargar.")
             else:
                 self.status_var.set(f"Texto pegado: '{clip}'. Pulsa Buscar para ver resultados.")
         except Exception:
@@ -820,7 +830,8 @@ class YtCliGUI:
             self.tree.delete(item)
         self.last_search_results = []
         self.is_viewing_history = False
-        self.btn_history.config(text="📜 Historial")
+        s = GUI_STRINGS.get(self.current_lang, GUI_STRINGS["en"])
+        self.btn_history.config(text=s["history"])
         self.prog_bar.stop()
         self.status_var.set("Listo. Campo y resultados limpiados.")
         self.entry_query.focus_set()
@@ -845,7 +856,7 @@ class YtCliGUI:
             self.tree.move(k, "", index)
 
         self._refresh_row_tags()
-        order_txt = "descendente ⬇" if reverse else "ascendente ⬆"
+        order_txt = "descendente ↓" if reverse else "ascendente ↑"
         self.status_var.set(f"Tabla ordenada por '{col}' ({order_txt}).")
 
     def start_search(self):
@@ -976,7 +987,8 @@ class YtCliGUI:
             return
 
         self.is_viewing_history = True
-        self.btn_history.config(text="🔍 Volver a Búsqueda")
+        s = GUI_STRINGS.get(self.current_lang, GUI_STRINGS["en"])
+        self.btn_history.config(text=s["history_back"])
 
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -985,11 +997,12 @@ class YtCliGUI:
             tag = "evenrow" if idx % 2 == 0 else "oddrow"
             self.tree.insert("", tk.END, values=(entry.get("title", ""), entry.get("channel", ""), entry.get("duration", ""), entry.get("id", "")), tags=(tag,))
 
-        self.status_var.set(f"📜 Mostrando historial ({len(hist)} vídeos). Pulsa 'Volver a Búsqueda' para regresar.")
+        self.status_var.set(f"Mostrando historial ({len(hist)} vídeos). Pulsa 'Volver a Búsqueda' para regresar.")
 
     def show_last_search(self):
         self.is_viewing_history = False
-        self.btn_history.config(text="📜 Historial")
+        s = GUI_STRINGS.get(self.current_lang, GUI_STRINGS["en"])
+        self.btn_history.config(text=s["history"])
 
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -1018,9 +1031,15 @@ class YtCliGUI:
         lbl_title = tk.Label(dialog, text="YT-CLI v1.3", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl_title.pack(pady=(14, 2))
 
+        is_en = self.current_lang == "en"
+        desc_txt = (
+            "Ultralight high-performance multimedia client\nfor resource-constrained and modern systems."
+            if is_en else
+            "Cliente multimedia ultraligero y de alto rendimiento\npara equipos de bajos recursos y sistemas modernos."
+        )
         lbl_desc = tk.Label(
             dialog,
-            text="Cliente multimedia ultraligero y de alto rendimiento\npara equipos de bajos recursos y sistemas modernos.",
+            text=desc_txt,
             font=("sans-serif", 8),
             bg=pal["card_bg"],
             fg=pal["fg_muted"],
@@ -1031,13 +1050,13 @@ class YtCliGUI:
         box = tk.Frame(dialog, bg=pal["entry_bg"], bd=1, relief="solid", padx=12, pady=10)
         box.pack(fill=tk.X, padx=20, pady=(0, 12))
 
-        tk.Label(box, text="👤 Autor:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=0, column=0, sticky="w", pady=2)
+        tk.Label(box, text="Author:" if is_en else "Autor:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=0, column=0, sticky="w", pady=2)
         tk.Label(box, text="Kenny Waddell (@KennyWaddell)", font=("sans-serif", 8), bg=pal["entry_bg"], fg=pal["accent_green"]).grid(row=0, column=1, sticky="w", padx=8, pady=2)
 
-        tk.Label(box, text="🤝 Colaboración:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=1, column=0, sticky="w", pady=2)
+        tk.Label(box, text="Collaboration:" if is_en else "Colaboración:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=1, column=0, sticky="w", pady=2)
         tk.Label(box, text="Google DeepMind / Antigravity", font=("sans-serif", 8), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=1, column=1, sticky="w", padx=8, pady=2)
 
-        tk.Label(box, text="📜 Licencia:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=2, column=0, sticky="w", pady=2)
+        tk.Label(box, text="License:" if is_en else "Licencia:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=2, column=0, sticky="w", pady=2)
         tk.Label(box, text="GNU General Public License v3 (GPLv3)", font=("sans-serif", 8), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=2, column=1, sticky="w", padx=8, pady=2)
 
         def open_repo():
@@ -1045,7 +1064,7 @@ class YtCliGUI:
 
         btn_repo = tk.Button(
             dialog,
-            text="🌐 Ver Repositorio en GitHub",
+            text="View Repository on GitHub" if is_en else "Ver Repositorio en GitHub",
             command=open_repo,
             font=("sans-serif", 8, "bold"),
             bg=pal["btn_primary_bg"],
@@ -1124,10 +1143,11 @@ class YtCliGUI:
         btn_box = tk.Frame(dialog, bg=pal["card_bg"])
         btn_box.pack(fill=tk.X, padx=20, pady=(6, 0))
 
-        btn_clear = tk.Button(btn_box, text="🗑️ Borrar Historial", command=clear_all, font=("sans-serif", 8), bg="#7f1d1d", fg="#ffffff", relief="flat", padx=10, pady=3, cursor="hand2")
+        is_en = self.current_lang == "en"
+        btn_clear = tk.Button(btn_box, text="Clear History" if is_en else "Borrar Historial", command=clear_all, font=("sans-serif", 8), bg="#7f1d1d", fg="#ffffff", relief="flat", padx=10, pady=3, cursor="hand2")
         btn_clear.pack(side=tk.LEFT)
 
-        btn_ok = tk.Button(btn_box, text="Guardar y Cerrar", command=save_and_close, font=("sans-serif", 8, "bold"), bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], relief="flat", padx=10, pady=3, cursor="hand2")
+        btn_ok = tk.Button(btn_box, text="Save and Close" if is_en else "Guardar y Cerrar", command=save_and_close, font=("sans-serif", 8, "bold"), bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], relief="flat", padx=10, pady=3, cursor="hand2")
         btn_ok.pack(side=tk.RIGHT)
 
     def play_selected(self, audio_only=False):
@@ -1210,7 +1230,7 @@ class YtCliGUI:
             def update_playing_status():
                 self.prog_bar.stop()
                 if audio_only:
-                    self.status_var.set("🎧 En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), 9/0 (Volumen), L (Bucle)")
+                    self.status_var.set("♫ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), 9/0 (Volumen), L (Bucle)")
                 else:
                     self.status_var.set("▶ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), F (Pantalla completa)")
             self.root.after(10000, update_playing_status)
@@ -1467,7 +1487,8 @@ class YtCliGUI:
                     self.btn_search.config(state=tk.NORMAL)
                     self.last_search_results = data
                     self.is_viewing_history = False
-                    self.btn_history.config(text="📜 Historial")
+                    s = GUI_STRINGS.get(self.current_lang, GUI_STRINGS["en"])
+                    self.btn_history.config(text=s["history"])
                     for idx, item in enumerate(data):
                         tag = "evenrow" if idx % 2 == 0 else "oddrow"
                         self.tree.insert("", tk.END, values=item, tags=(tag,))
