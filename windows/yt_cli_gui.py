@@ -1576,7 +1576,7 @@ class YtCliGUI:
                 cmd += [
                     "-f", fmt,
                     "--merge-output-format", "mp4",
-                    "--ffmpeg-location", bin_dir
+                    "--ffmpeg-location", ffmpeg_cmd
                 ]
                 if embed_thumb:
                     cmd += ["--embed-thumbnail"]
@@ -1586,27 +1586,27 @@ class YtCliGUI:
                         "-f", "ba[ext=m4a]/ba/b",
                         "-x",
                         "--audio-format", "m4a",
-                        "--ffmpeg-location", bin_dir
+                        "--ffmpeg-location", ffmpeg_cmd
                     ]
                 elif audio_format == "opus":
                     cmd += [
                         "-f", "ba[ext=opus]/ba[ext=webm]/ba/b",
                         "-x",
                         "--audio-format", "opus",
-                        "--ffmpeg-location", bin_dir
+                        "--ffmpeg-location", ffmpeg_cmd
                     ]
                 elif audio_format == "flac":
                     cmd += [
                         "-x",
                         "--audio-format", "flac",
-                        "--ffmpeg-location", bin_dir
+                        "--ffmpeg-location", ffmpeg_cmd
                     ]
                 else:  # mp3
                     cmd += [
                         "-x",
                         "--audio-format", "mp3",
                         "--audio-quality", bitrate,
-                        "--ffmpeg-location", bin_dir
+                        "--ffmpeg-location", ffmpeg_cmd
                     ]
                 if embed_thumb:
                     cmd += ["--embed-thumbnail"]
@@ -1626,17 +1626,31 @@ class YtCliGUI:
                 )
                 self.active_process = proc
 
+                merge_failed = False
+                all_output_lines = []
                 for line in proc.stdout:
+                    all_output_lines.append(line)
+                    line_clean = line.strip()
                     if "[download]" in line and "%" in line:
-                        clean_line = line.strip().replace("[download]", "").strip()
-                        self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {clean_line}"))
+                        pct_text = line_clean.replace("[download]", "").strip()
+                        self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {pct_text}"))
+                    elif "ffmpeg is not installed" in line or "won't be merged" in line:
+                        merge_failed = True
+                    elif "ERROR:" in line:
+                        last_error_msg = line_clean
 
                 proc.wait()
                 if self.is_cancelled:
                     break
                 if proc.returncode != 0:
                     has_error = True
-                    last_error_msg = f"Item {idx} failed (exit code {proc.returncode})" if is_en else f"Error en elemento {idx}. Código: {proc.returncode}"
+                    if not last_error_msg:
+                        last_error_msg = f"Item {idx} failed (exit code {proc.returncode})" if is_en else f"Error en elemento {idx}. Código: {proc.returncode}"
+                    self.msg_queue.put(("error", last_error_msg))
+                    break
+                elif merge_failed:
+                    has_error = True
+                    last_error_msg = "FFmpeg was not detected or failed to merge audio and video." if is_en else "FFmpeg no fue detectado o falló al unir el audio y vídeo."
                     self.msg_queue.put(("error", last_error_msg))
                     break
             except Exception as e:
@@ -1710,7 +1724,7 @@ class YtCliGUI:
                 "--write-auto-subs",
                 "--sub-lang", f"{self.current_lang},es,en",
                 "--extractor-args", f"youtube:lang={self.current_lang}",
-                "--ffmpeg-location", bin_dir,
+                "--ffmpeg-location", ffmpeg_cmd,
                 "--sub-format", "srt/vtt/best",
                 "--convert-subs", "srt",
                 "--no-warnings",

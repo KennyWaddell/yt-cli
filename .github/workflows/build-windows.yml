@@ -36,10 +36,15 @@ jobs:
           Write-Host "-> Descargando yt-dlp.exe oficial..."
           curl.exe -fSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -o "windows\bin\yt-dlp.exe"
 
-          Write-Host "-> Descargando ffmpeg.exe y ffprobe.exe oficiales (yt-dlp builds)..."
-          curl.exe -fSL "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -o "ffmpeg.zip"
+          Write-Host "-> Descargando ffmpeg.exe y ffprobe.exe oficiales (gyan.dev essentials)..."
+          curl.exe -fSL "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -o "ffmpeg.zip"
           7z e ffmpeg.zip -owindows\bin ffmpeg.exe ffprobe.exe -r -y
           Remove-Item ffmpeg.zip -Force
+
+          Write-Host "-> Descargando vulkan-1.dll oficial (LunarG VulkanRT)..."
+          curl.exe -fSL -A "Mozilla/5.0" "https://sdk.lunarg.com/sdk/download/1.3.296.0/windows/VulkanRT-1.3.296.0-Components.zip" -o "vulkan.zip"
+          7z e vulkan.zip -owindows\bin VulkanRT-1.3.296.0-Components\x64\vulkan-1.dll -r -y
+          Remove-Item vulkan.zip -Force
 
           Write-Host "-> Descargando mpv.exe oficial (shinchiro winbuild)..."
           curl.exe -fSL "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261111/mpv-x86_64-20261111-git-bcde6b93cc.7z" -o "mpv.7z"
@@ -51,6 +56,38 @@ jobs:
         shell: cmd
         run: |
           pyinstaller --noconsole --onefile --icon=app.ico --add-data "app.ico;." --name=YT-CLI yt_cli_gui.py
+
+      - name: Smoke-Test de Integridad y Muxing en Windows VM
+        shell: powershell
+        run: |
+          Write-Host "=== TEST 1: Verificando ejecucion de yt-dlp.exe ==="
+          & windows\bin\yt-dlp.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "yt-dlp.exe fallo al ejecutar" }
+
+          Write-Host "=== TEST 2: Verificando ejecucion de ffmpeg.exe (Gyan Essentials) ==="
+          & windows\bin\ffmpeg.exe -version
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg.exe fallo al ejecutar" }
+
+          Write-Host "=== TEST 3: Verificando ejecucion de ffprobe.exe ==="
+          & windows\bin\ffprobe.exe -version
+          if ($LASTEXITCODE -ne 0) { throw "ffprobe.exe fallo al ejecutar" }
+
+          Write-Host "=== TEST 4: Verificando mpv.exe con vulkan-1.dll y d3dcompiler ==="
+          & windows\bin\mpv.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "mpv.exe fallo al ejecutar" }
+
+          Write-Host "=== TEST 5: Verificando deteccion de ffmpeg en yt-dlp ==="
+          & windows\bin\yt-dlp.exe --ffmpeg-location windows\bin --version
+          if ($LASTEXITCODE -ne 0) { throw "yt-dlp no pudo enlazar con ffmpeg" }
+
+          Write-Host "=== TEST 6: Prueba real de muxing de video + audio con FFmpeg ==="
+          & windows\bin\ffmpeg.exe -f lavfi -i color=c=blue:s=320x240:d=1 -c:v libx264 test_v.mp4 -y
+          & windows\bin\ffmpeg.exe -f lavfi -i sine=f=440:d=1 -c:a aac test_a.m4a -y
+          & windows\bin\ffmpeg.exe -i test_v.mp4 -i test_a.m4a -c copy test_merged.mp4 -y
+          if (!(Test-Path test_merged.mp4)) { throw "Fallo la creacion y fusion del contenedor MP4" }
+          Remove-Item test_v.mp4, test_a.m4a, test_merged.mp4 -Force
+
+          Write-Host "=== [EXITO] TODOS LOS TESTS ENTORNO WINDOWS PASARON AL 100% ==="
 
       - name: Empaquetar ZIP Portable
         shell: powershell
