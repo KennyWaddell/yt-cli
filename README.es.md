@@ -61,7 +61,9 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
   * **480p / 360p:** Para conexiones lentas o ahorro extremo de energía.
   * **Solo Audio:** Ideal para podcasts, conferencias o música de fondo consumiendo apenas 25 MB de RAM.
 * ⬇️ **Descargas inteligentes y reanudables:**
+  * **Recorte de fragmentos por tiempo (`--section` / `[9]`):** Descarga solo el intervalo exacto que necesitas de vídeos largos o tutoriales (ej: `--section 00:10:00-00:25:00`).
   * **División por capítulos (`--split-chapters` / `-s`):** Separa automáticamente álbumes completos, podcasts y cursos en pistas individuales sin re-codificar.
+  * **Transcripciones limpias en texto (`-t` / `[t]`):** Extrae los subtítulos en un archivo `.txt` continuo y legible (junto al `.srt`) para estudiar o leer rápido sin descargar el vídeo.
   * **Formatos de audio avanzados:** Elige entre **M4A/AAC** u **Opus** nativos de YT (copia directa del stream original con carátula oficial y cero pérdida por compresión) o **MP3** tradicional (320k, 192k, 128k) y **FLAC**.
   * **Historial de descargas seguras:** Registra los vídeos ya descargados (`--download-archive`), de modo que al bajar listas o canales enteros se salten al instante los archivos ya guardados sin gastar ancho de banda.
   * **Reanudación automática:** Si se interrumpe la conexión, retoma la descarga en el mismo punto sin perder datos (`--continue`).

@@ -61,7 +61,9 @@ If you are familiar with terminal tools like `ytfzf`, here is how `YT-CLI` compa
   * **480p / 360p:** For slow connections or extreme power saving.
   * **Audio Only:** Ideal for podcasts, tutorials, or background music (~25 MB RAM).
 * ⬇️ **Smart & Resumable Downloads:**
+  * **Time Section Trimming (`--section` / `[9]`):** Download only the exact segment you need from long videos, concerts, or tutorials (e.g. `--section 00:10:00-00:25:00`).
   * **Chapter Splitting (`--split-chapters` / `-s`):** Automatically split albums, podcasts, and courses into separate individual tracks without re-encoding.
+  * **Clean Text Transcripts (`-t` / `[t]`):** Extract subtitle transcripts into clean, readable `.txt` prose (and `.srt`) for studying or rapid reading without downloading video.
   * **Native Audio Formats:** Download in native **M4A/AAC** or **Opus** (direct stream copy from YT with official cover art, zero quality loss) or standard **MP3** (320k, 192k, 128k) and **FLAC**.
   * **Safe Download Archive:** Automatically keeps track of downloaded files (`--download-archive`), ensuring batch playlist and channel downloads skip already downloaded media without wasting bandwidth.
   * **Automatic Resumption:** Network drops automatically resume where they left off (`--continue`).

@@ -43,10 +43,17 @@ else
     DEFAULT_DIR_MUSIC="${HOME}/Music"
 fi
 
+if [ -d "${HOME}/Documentos" ]; then
+    DEFAULT_DIR_DOCS="${HOME}/Documentos"
+else
+    DEFAULT_DIR_DOCS="${HOME}/Documents"
+fi
+
 CURRENT_DIR_VIDEOS="$DEFAULT_DIR_VIDEOS"
 CURRENT_DIR_MUSIC="$DEFAULT_DIR_MUSIC"
+CURRENT_DIR_DOCS="$DEFAULT_DIR_DOCS"
 
-mkdir -p "$CURRENT_DIR_VIDEOS" "$CURRENT_DIR_MUSIC" 2>/dev/null || true
+mkdir -p "$CURRENT_DIR_VIDEOS" "$CURRENT_DIR_MUSIC" "$CURRENT_DIR_DOCS" 2>/dev/null || true
 
 # Configuración de Cookies (soporte para navegadores y archivos cookies.txt)
 COOKIE_MPV_ARGS=()
@@ -323,6 +330,16 @@ EOF
                 download_chapters "$url"
                 return
                 ;;
+            down_section)
+                record_history "$clean_title" "$id"
+                download_section "" "" "" "$url"
+                return
+                ;;
+            down_transcript)
+                record_history "$clean_title" "$id"
+                download_transcript "$url"
+                return
+                ;;
             delete)
                 delete_history_item "$id"
                 sleep 0.8
@@ -405,9 +422,10 @@ get_clipboard_url() {
 
 # 4. Selector de carpeta de destino interactivo
 choose_destination_folder() {
-    local type="$1" # "video" o "audio"
+    local type="$1" # "video", "audio" o "doc"
     local default_folder="$CURRENT_DIR_VIDEOS"
     [ "$type" = "audio" ] && default_folder="$CURRENT_DIR_MUSIC"
+    [ "$type" = "doc" ] && default_folder="$CURRENT_DIR_DOCS"
 
     echo -e "${C_CYAN}${MSG_DL_DEST_TITLE}${C_RESET}" >&2
     echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_DEST_DEFAULT} ${C_GREEN}${default_folder}${C_RESET} ${C_YELLOW}★${C_RESET}" >&2
@@ -429,11 +447,16 @@ choose_destination_folder() {
     fi
 
     echo -e "  ${C_BOLD}[c]${C_RESET} ${MSG_DL_DEST_CUSTOM}" >&2
+    echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0:-Volver a la lista / Cancelar}" >&2
     echo "" >&2
     echo -ne "${C_YELLOW}${MSG_DL_DEST_PROMPT}${C_RESET}" >&2
 
     local choice=""
     if [ -t 0 ]; then read -r choice || choice="1"; else read -r choice </dev/tty || choice="1"; fi
+    if [[ "$choice" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+        echo "CANCEL"
+        return
+    fi
     [ -z "$choice" ] && choice="1"
     echo "" >&2
 
@@ -446,6 +469,10 @@ choose_destination_folder() {
         echo -ne "${C_CYAN}${MSG_DL_DEST_INPUT}${C_RESET}" >&2
         local custom_path=""
         if [ -t 0 ]; then read -r custom_path; else read -r custom_path </dev/tty; fi
+        if [[ "$custom_path" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+            echo "CANCEL"
+            return
+        fi
         custom_path="${custom_path/#\~/$HOME}"
         mkdir -p "$custom_path" 2>/dev/null || true
         echo "$custom_path"
@@ -475,6 +502,8 @@ choose_action() {
     echo -e "  ${C_BOLD}[6]${C_RESET} ${MSG_ACTION_6}"
     echo -e "  ${C_BOLD}[7]${C_RESET} ${MSG_ACTION_7}"
     echo -e "  ${C_BOLD}[8]${C_RESET} ${MSG_ACTION_8:-Descargar por capítulos  (Separar álbum/podcast por pistas)}"
+    echo -e "  ${C_BOLD}[9]${C_RESET} ${MSG_ACTION_9:-Descargar fragmento     (Recortar intervalo de tiempo)}"
+    echo -e "  ${C_BOLD}[t]${C_RESET} ${MSG_ACTION_T:-Extraer transcripción   (Guardar texto/subtítulos sin video)}"
     echo ""
     echo -e "  ${C_BOLD}${MSG_ACTION_NAV_HEADER}${C_RESET}"
     if [ "$is_history" = "history" ]; then
@@ -483,9 +512,9 @@ choose_action() {
     echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0}"
     echo ""
     if [ "$is_history" = "history" ]; then
-        echo -ne "${C_YELLOW}${MSG_ACTION_HIST_PROMPT:-Elige opción [1-8 | d para borrar | 0 para volver] (Enter para 720p): }${C_RESET}"
+        echo -ne "${C_YELLOW}${MSG_ACTION_HIST_PROMPT:-Elige opción [1-9 | t texto | d borrar | 0 volver] (Enter para 720p): }${C_RESET}"
     else
-        echo -ne "${C_YELLOW}${MSG_ACTION_PROMPT:-Elige opción [1-8 | 0 para volver] (Enter para ver en 720p): }${C_RESET}"
+        echo -ne "${C_YELLOW}${MSG_ACTION_PROMPT:-Elige opción [1-9 | t texto | 0 volver] (Enter para ver en 720p): }${C_RESET}"
     fi
 
     local user_opt=""
@@ -506,6 +535,8 @@ choose_action() {
         6) SELECTED_ACTION="down_1080" ;;
         7|[mM]) SELECTED_ACTION="down_mp3" ;;
         8|[sS]) SELECTED_ACTION="down_chapters" ;;
+        9|[fF]) SELECTED_ACTION="down_section" ;;
+        [tT]|sub|subs|texto|transcript) SELECTED_ACTION="down_transcript" ;;
         [dD]|del|borrar|eliminar)
             if [ "$is_history" = "history" ]; then
                 SELECTED_ACTION="delete"
@@ -605,6 +636,9 @@ download_videos() {
 
     local dest_dir
     dest_dir=$(choose_destination_folder "video")
+    if [ -z "$dest_dir" ] || [ "$dest_dir" = "CANCEL" ]; then
+        return
+    fi
     mkdir -p "$dest_dir" 2>/dev/null || true
 
     echo -e "${C_CYAN}${MSG_DL_VIDEO_START} ${height}p (H.264 / continue)...${C_RESET}"
@@ -650,11 +684,15 @@ download_music() {
     echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_AUDIO_F2:-M4A / AAC (Nativo de YT • Con carátula oficial • Copia rápida)}"
     echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_AUDIO_F3:-Opus (Nativo de YT • Máxima fidelidad acústica • Ligero)}"
     echo -e "  ${C_BOLD}[4]${C_RESET} ${MSG_DL_AUDIO_F4:-FLAC (Audio sin pérdida / Lossless)}"
+    echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0:-Volver a la lista / Cancelar}"
     echo ""
-    echo -ne "${C_YELLOW}${MSG_DL_AUDIO_FORMAT_PROMPT:-Elige formato [1-4] (Enter para MP3): }${C_RESET}"
+    echo -ne "${C_YELLOW}${MSG_DL_AUDIO_FORMAT_PROMPT:-Elige formato [1-4 | 0 para volver] (Enter para MP3): }${C_RESET}"
 
     local format_opt=""
     if [ -t 0 ]; then read -r format_opt || format_opt="1"; else read -r format_opt </dev/tty || format_opt="1"; fi
+    if [[ "$format_opt" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+        return
+    fi
     [ -z "$format_opt" ] && format_opt="1"
     echo ""
 
@@ -672,11 +710,15 @@ download_music() {
         echo -e "  ${C_BOLD}[1]${C_RESET} ${MSG_DL_MUSIC_Q1}"
         echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_MUSIC_Q2}"
         echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_MUSIC_Q3}"
+        echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0:-Volver a la lista / Cancelar}"
         echo ""
-        echo -ne "${C_YELLOW}${MSG_DL_MUSIC_Q_PROMPT}${C_RESET}"
+        echo -ne "${C_YELLOW}${MSG_DL_MUSIC_Q_PROMPT:-Elige calidad [1-3 | 0 para volver] (Enter para 320k): }${C_RESET}"
 
         local user_opt=""
         if [ -t 0 ]; then read -r user_opt || user_opt="1"; else read -r user_opt </dev/tty || user_opt="1"; fi
+        if [[ "$user_opt" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+            return
+        fi
         [ -z "$user_opt" ] && user_opt="1"
         echo ""
 
@@ -687,9 +729,12 @@ download_music() {
         esac
     fi
 
-    echo -ne "${C_CYAN}${MSG_DL_EMBED_COVER_PROMPT:-¿Incrustar carátula oficial? [S/n]: }${C_RESET}"
+    echo -ne "${C_CYAN}${MSG_DL_EMBED_COVER_PROMPT:-¿Incrustar carátula oficial? [S/n | 0 para volver]: }${C_RESET}"
     local user_cover=""
     if [ -t 0 ]; then read -r user_cover || user_cover="s"; else read -r user_cover </dev/tty || user_cover="s"; fi
+    if [[ "$user_cover" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+        return
+    fi
     [ -z "$user_cover" ] && user_cover="s"
     echo ""
 
@@ -705,6 +750,9 @@ download_music() {
 
     local dest_dir
     dest_dir=$(choose_destination_folder "audio")
+    if [ -z "$dest_dir" ] || [ "$dest_dir" = "CANCEL" ]; then
+        return
+    fi
     mkdir -p "$dest_dir" 2>/dev/null || true
 
     local info_label="${audio_fmt^^}"
@@ -749,11 +797,15 @@ download_chapters() {
     echo -e "  ${C_BOLD}[2]${C_RESET} ${MSG_DL_CHAPTERS_F2:-Audio M4A (Nativo de YT • Copia directa rápida)}"
     echo -e "  ${C_BOLD}[3]${C_RESET} ${MSG_DL_CHAPTERS_F3:-Video 720p HD (Archivos MP4 por capítulo)}"
     echo -e "  ${C_BOLD}[4]${C_RESET} ${MSG_DL_CHAPTERS_F4:-Video 1080p Full HD (Archivos MP4 por capítulo)}"
+    echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0:-Volver a la lista / Cancelar}"
     echo ""
-    echo -ne "${C_YELLOW}${MSG_DL_CHAPTERS_PROMPT:-Elige formato [1-4] (Enter para MP3): }${C_RESET}"
+    echo -ne "${C_YELLOW}${MSG_DL_CHAPTERS_PROMPT:-Elige formato [1-4 | 0 para volver] (Enter para MP3): }${C_RESET}"
 
     local user_opt=""
     if [ -t 0 ]; then read -r user_opt || user_opt="1"; else read -r user_opt </dev/tty || user_opt="1"; fi
+    if [[ "$user_opt" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+        return
+    fi
     [ -z "$user_opt" ] && user_opt="1"
     echo ""
 
@@ -770,6 +822,9 @@ download_chapters() {
         dest_dir=$(choose_destination_folder "audio")
     else
         dest_dir=$(choose_destination_folder "video")
+    fi
+    if [ -z "$dest_dir" ] || [ "$dest_dir" = "CANCEL" ]; then
+        return
     fi
     mkdir -p "$dest_dir" 2>/dev/null || true
 
@@ -844,7 +899,221 @@ download_chapters() {
     if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
 }
 
-# 8c. Actualización de yt-dlp
+# 8c. Descarga de fragmentos por rango de tiempo (--download-sections)
+download_section() {
+    local start_time="$1"
+    local end_time="$2"
+    local format_choice="$3"
+    shift 3 2>/dev/null || true
+    local targets=("$@")
+
+    if [ -z "$start_time" ]; then
+        echo -e "${C_CYAN}${MSG_SECTION_PROMPT_TITLE:-✂ Recorte de Fragmento de Video/Audio}${C_RESET}"
+        echo -ne "${C_YELLOW}${MSG_SECTION_START_PROMPT:-Tiempo de inicio (ej: 00:02:30 o 2:30) [Enter para 00:00:00 | 0 para volver]: }${C_RESET}"
+        if [ -t 0 ]; then read -r start_time; else read -r start_time </dev/tty; fi
+        if [[ "$start_time" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+            return
+        fi
+        [ -z "$start_time" ] && start_time="00:00:00"
+
+        echo -ne "${C_YELLOW}${MSG_SECTION_END_PROMPT:-Tiempo de fin (ej: 00:05:45 o 5:45) [0 para volver]: }${C_RESET}"
+        if [ -t 0 ]; then read -r end_time; else read -r end_time </dev/tty; fi
+        if [[ "$end_time" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+            return
+        fi
+        if [ -z "$end_time" ]; then
+            echo -e "${C_RED}[ERROR]${C_RESET} Debes indicar un tiempo de finalización."
+            return
+        fi
+
+        echo -e "\n${C_CYAN}${MSG_SECTION_FORMAT_TITLE:-Formato para el fragmento:}${C_RESET}"
+        echo -e "  ${C_BOLD}[1]${C_RESET} Video 720p HD (MP4)"
+        echo -e "  ${C_BOLD}[2]${C_RESET} Video 1080p Full HD (MP4)"
+        echo -e "  ${C_BOLD}[3]${C_RESET} Audio MP3 (320k)"
+        echo -e "  ${C_BOLD}[4]${C_RESET} Audio M4A (Nativo de YT)"
+        echo -e "  ${C_BOLD}[0]${C_RESET} ${MSG_ACTION_0:-Volver a la lista / Cancelar}"
+        echo ""
+        echo -ne "${C_YELLOW}${MSG_DL_DEST_PROMPT:-Elige opción [1-4 | 0 para volver] (Enter para 720p): }${C_RESET}"
+        if [ -t 0 ]; then read -r format_choice; else read -r format_choice </dev/tty; fi
+        if [[ "$format_choice" =~ ^(0|[qQ]|cancel|cancelar|volver|atras)$ ]]; then
+            return
+        fi
+        [ -z "$format_choice" ] && format_choice="1"
+    fi
+
+    local section_spec="*${start_time}-${end_time}"
+    local dest_dir
+    if [ "$format_choice" = "3" ] || [ "$format_choice" = "4" ] || [ "$format_choice" = "mp3" ] || [ "$format_choice" = "m4a" ]; then
+        dest_dir=$(choose_destination_folder "audio")
+    else
+        dest_dir=$(choose_destination_folder "video")
+    fi
+    if [ -z "$dest_dir" ] || [ "$dest_dir" = "CANCEL" ]; then
+        return
+    fi
+    mkdir -p "$dest_dir" 2>/dev/null || true
+
+    echo -e "${C_CYAN}${MSG_SECTION_STARTING:-✂ Descargando fragmento} [${start_time} ➔ ${end_time}]...${C_RESET}"
+    echo -e "${C_GRAY}${MSG_DL_SAVING_IN} ${dest_dir}/${C_RESET}\n"
+
+    local clean_s="${start_time//:/-}"
+    local clean_e="${end_time//:/-}"
+    local has_error=0
+
+    for t in "${targets[@]}"; do
+        case "$format_choice" in
+            3|mp3)
+                if ! "$BIN_YTDLP" \
+                    ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                    -c \
+                    --download-sections "$section_spec" \
+                    --extract-audio \
+                    --audio-format mp3 \
+                    --audio-quality 320k \
+                    --embed-thumbnail \
+                    --embed-metadata \
+                    --force-keyframes-at-cuts \
+                    -o "${dest_dir}/%(title)s [${clean_s}_${clean_e}].%(ext)s" \
+                    "$t"; then
+                    has_error=1
+                fi
+                ;;
+            4|m4a)
+                if ! "$BIN_YTDLP" \
+                    ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                    -c \
+                    --download-sections "$section_spec" \
+                    --extract-audio \
+                    --audio-format m4a \
+                    --embed-thumbnail \
+                    --embed-metadata \
+                    --force-keyframes-at-cuts \
+                    -o "${dest_dir}/%(title)s [${clean_s}_${clean_e}].%(ext)s" \
+                    "$t"; then
+                    has_error=1
+                fi
+                ;;
+            2|1080)
+                local ytdl_fmt="bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio/best[height<=1080]/best"
+                if ! "$BIN_YTDLP" \
+                    ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                    -c \
+                    --download-sections "$section_spec" \
+                    -f "${ytdl_fmt}" \
+                    --merge-output-format mp4 \
+                    --embed-thumbnail \
+                    --embed-metadata \
+                    --force-keyframes-at-cuts \
+                    -o "${dest_dir}/%(title)s [${clean_s}_${clean_e}].%(ext)s" \
+                    "$t"; then
+                    has_error=1
+                fi
+                ;;
+            *)
+                local ytdl_fmt="bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[height<=720]/best"
+                if ! "$BIN_YTDLP" \
+                    ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+                    -c \
+                    --download-sections "$section_spec" \
+                    -f "${ytdl_fmt}" \
+                    --merge-output-format mp4 \
+                    --embed-thumbnail \
+                    --embed-metadata \
+                    --force-keyframes-at-cuts \
+                    -o "${dest_dir}/%(title)s [${clean_s}_${clean_e}].%(ext)s" \
+                    "$t"; then
+                    has_error=1
+                fi
+                ;;
+        esac
+    done
+
+    if [ "$has_error" -eq 0 ]; then
+        echo -e "\n${C_GREEN}${MSG_DL_ALL_COMPLETE}${C_RESET}"
+        notify_user "${MSG_DL_SUCCESS_NOTIFY}" "${MSG_DL_SUCCESS_MSG} ${dest_dir}"
+    else
+        echo -e "\n${C_RED}✖ ${MSG_DL_FAILED}${C_RESET}"
+    fi
+
+    echo -ne "${C_YELLOW}${MSG_HELP_PRESS_ENTER}${C_RESET}"
+    local dummy=""
+    if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
+}
+
+# 8d. Extracción limpia de subtítulos y transcripciones de texto (--write-auto-subs --skip-download)
+download_transcript() {
+    local targets=("$@")
+
+    local dest_dir
+    dest_dir=$(choose_destination_folder "doc")
+    if [ -z "$dest_dir" ] || [ "$dest_dir" = "CANCEL" ]; then
+        return
+    fi
+    mkdir -p "$dest_dir" 2>/dev/null || true
+
+    echo -e "${C_CYAN}${MSG_TRANSCRIPT_START:-📝 Extrayendo transcripción y subtítulos en texto...}${C_RESET}"
+    echo -e "${C_GRAY}${MSG_DL_SAVING_IN} ${dest_dir}/${C_RESET}\n"
+
+    local has_error=0
+    for t in "${targets[@]}"; do
+        if ! "$BIN_YTDLP" \
+            ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
+            --skip-download \
+            --write-subs \
+            --write-auto-subs \
+            --sub-lang "${CURRENT_LANG},es,en" \
+            --sub-format "srt/vtt/best" \
+            --convert-subs srt \
+            --no-warnings \
+            -o "${dest_dir}/%(title)s.%(ext)s" \
+            "$t"; then
+            has_error=1
+        else
+            python3 - "$dest_dir" << 'EOF' 2>/dev/null || true
+import sys, os, glob, re
+
+target_dir = sys.argv[1]
+srt_files = glob.glob(os.path.join(target_dir, "*.srt"))
+
+for srt_path in srt_files:
+    txt_path = os.path.splitext(srt_path)[0] + ".txt"
+    if os.path.exists(txt_path):
+        continue
+    try:
+        with open(srt_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        clean_text = []
+        last_line = ""
+        for line in lines:
+            line = line.strip()
+            if not line or line.isdigit() or "-->" in line:
+                continue
+            line = re.sub(r"<[^>]+>", "", line).strip()
+            if line and line != last_line:
+                clean_text.append(line)
+                last_line = line
+        if clean_text:
+            with open(txt_path, "w", encoding="utf-8") as out:
+                out.write("\n".join(clean_text) + "\n")
+    except Exception:
+        pass
+EOF
+        fi
+    done
+
+    if [ "$has_error" -eq 0 ]; then
+        echo -e "\n${C_GREEN}${MSG_TRANSCRIPT_SUCCESS:-✔ Transcripción guardada (.srt y .txt limpio).}${C_RESET}"
+        notify_user "Transcripción Guardada" "Texto guardado en ${dest_dir}"
+    else
+        echo -e "\n${C_RED}✖ ${MSG_DL_FAILED}${C_RESET}"
+    fi
+
+    echo -ne "${C_YELLOW}${MSG_HELP_PRESS_ENTER}${C_RESET}"
+    local dummy=""
+    if [ -t 0 ]; then read -r dummy; else read -r dummy </dev/tty; fi
+}
+
+# 8e. Actualización de yt-dlp
 update_ytdlp() {
     echo -e "${C_CYAN}${MSG_UPDATE_START:-🔄 Comprobando actualizaciones de yt-dlp...}${C_RESET}\n"
 
@@ -935,15 +1204,21 @@ search_and_play() {
                 play_1080)  play_videos "1080" "${selected_urls[@]}" ;;
                 play_480)   play_videos "480" "${selected_urls[@]}" ;;
                 play_audio) play_videos "audio" "${selected_urls[@]}" ;;
-                down_720)      download_videos "720" "${selected_urls[@]}" ;;
-                down_1080)     download_videos "1080" "${selected_urls[@]}" ;;
-                down_mp3)      download_music "${selected_urls[@]}" ;;
-                down_chapters) download_chapters "${selected_urls[@]}" ;;
-                back|cancel)   continue ;;
+                down_720)        download_videos "720" "${selected_urls[@]}" ;;
+                down_1080)       download_videos "1080" "${selected_urls[@]}" ;;
+                down_mp3)        download_music "${selected_urls[@]}" ;;
+                down_chapters)   download_chapters "${selected_urls[@]}" ;;
+                down_section)    download_section "" "" "" "${selected_urls[@]}" ;;
+                down_transcript) download_transcript "${selected_urls[@]}" ;;
+                back|cancel)     continue ;;
             esac
         else
             if [ "$forced_mode" = "down_chapters" ]; then
                 download_chapters "${selected_urls[@]}"
+            elif [ "$forced_mode" = "down_section" ]; then
+                download_section "" "" "" "${selected_urls[@]}"
+            elif [ "$forced_mode" = "down_transcript" ]; then
+                download_transcript "${selected_urls[@]}"
             else
                 play_videos "$forced_mode" "${selected_urls[@]}"
             fi
@@ -962,15 +1237,17 @@ handle_direct_url() {
 
     choose_action "1"
     case "$SELECTED_ACTION" in
-        play_720)      play_videos "720" "$target_url" ;;
-        play_1080)     play_videos "1080" "$target_url" ;;
-        play_480)      play_videos "480" "$target_url" ;;
-        play_audio)    play_videos "audio" "$target_url" ;;
-        down_720)      download_videos "720" "$target_url" ;;
-        down_1080)     download_videos "1080" "$target_url" ;;
-        down_mp3)      download_music "$target_url" ;;
-        down_chapters) download_chapters "$target_url" ;;
-        back|cancel)   return ;;
+        play_720)        play_videos "720" "$target_url" ;;
+        play_1080)       play_videos "1080" "$target_url" ;;
+        play_480)        play_videos "480" "$target_url" ;;
+        play_audio)      play_videos "audio" "$target_url" ;;
+        down_720)        download_videos "720" "$target_url" ;;
+        down_1080)       download_videos "1080" "$target_url" ;;
+        down_mp3)        download_music "$target_url" ;;
+        down_chapters)   download_chapters "$target_url" ;;
+        down_section)    download_section "" "" "" "$target_url" ;;
+        down_transcript) download_transcript "$target_url" ;;
+        back|cancel)     return ;;
     esac
 }
 
@@ -1019,6 +1296,8 @@ show_interactive_help() {
     echo -e "    ${C_CYAN}yt-cli -d <query/url>${C_RESET}               ${MSG_HELP_CLI_DOWN}"
     echo -e "    ${C_CYAN}yt-cli -m <query/url>${C_RESET}               ${MSG_HELP_CLI_MUSIC}"
     echo -e "    ${C_CYAN}yt-cli -s <query/url>${C_RESET}               ${MSG_HELP_CLI_SPLIT:-Descargar dividiendo en capítulos (álbum/curso)}"
+    echo -e "    ${C_CYAN}yt-cli --section <start-end> <url>${C_RESET}     ${MSG_HELP_CLI_SECTION:-Descargar solo un fragmento (ej: --section 00:01:00-00:03:30)}"
+    echo -e "    ${C_CYAN}yt-cli -t <query/url>${C_RESET}               ${MSG_HELP_CLI_TRANSCRIPT:-Descargar transcripción de texto / subtítulos}"
     echo -e "    ${C_CYAN}yt-cli -u / --update${C_RESET}                ${MSG_HELP_CLI_UPDATE:-Actualizar yt-dlp y salir}"
     echo -e "    ${C_CYAN}yt-cli -H${C_RESET}                           ${MSG_HELP_CLI_HIST}"
     echo -e "    ${C_CYAN}yt-cli --lang [es|en]${C_RESET}               ${MSG_HELP_CMD_LANG}"
@@ -1064,6 +1343,8 @@ main() {
                 echo "  -d, --download [query/url]    Descargar video directamente en 720p MP4"
                 echo "  -m, --music [query/url]       Descargar audio en MP3, M4A, Opus o FLAC"
                 echo "  -s, --split [query/url]       Descargar dividiendo en capítulos (MP3 / Video)"
+                echo "      --section [ini-fin] [url] Descargar solo un fragmento (ej: --section 00:01:00-00:03:30)"
+                echo "  -t, --transcript [query/url]  Extraer transcripción de texto / subtítulos (.txt y .srt)"
                 echo "  -u, --update                  Actualizar yt-dlp a la última versión oficial"
                 echo "  -H, --history                 Abrir el historial de vídeos vistos"
                 echo "      --clear-history           Borrar todo el historial guardado"
@@ -1082,6 +1363,8 @@ main() {
                 echo "  yt-cli \"noticias\"            Buscar directamente y elegir del menú"
                 echo "  yt-cli -m \"linkin park\"       Buscar y descargar en MP3 directo a tu carpeta Música"
                 echo "  yt-cli -s \"pink floyd album\"  Descargar álbum dividiéndolo en canciones individuales"
+                echo "  yt-cli --section 00:01:00-00:05:00 \"https://youtu.be/...\"  Descargar solo ese fragmento"
+                echo "  yt-cli -t \"conferencia ted\"   Descargar solo la transcripción en texto sin video"
                 echo "  yt-cli -u                     Actualizar yt-dlp"
                 echo "  yt-cli https://youtu.be/...   Opciones directas para un enlace"
                 exit 0
@@ -1143,6 +1426,48 @@ main() {
                     echo -ne "${C_CYAN}Buscar en YouTube (Dividir en Capítulos): ${C_RESET}"
                     read -r query
                     [ -n "$query" ] && search_and_play "$query" "down_chapters"
+                fi
+                exit 0
+                ;;
+            -t|--transcript|--subs)
+                shift
+                if [ $# -gt 0 ]; then
+                    local target="$*"
+                    if [[ "$target" =~ ^https?:// ]]; then
+                        download_transcript "$target"
+                    else
+                        search_and_play "$target" "down_transcript"
+                    fi
+                else
+                    show_banner
+                    echo -ne "${C_CYAN}Buscar en YouTube (Extraer Transcripción): ${C_RESET}"
+                    read -r query
+                    [ -n "$query" ] && search_and_play "$query" "down_transcript"
+                fi
+                exit 0
+                ;;
+            --section|--fragment)
+                shift
+                local sec_range=""
+                if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9:]+-[0-9:]+$ ]]; then
+                    sec_range="$1"
+                    shift
+                fi
+                local s_start=""
+                local s_end=""
+                if [[ "$sec_range" =~ ^([0-9:]+)-([0-9:]+)$ ]]; then
+                    s_start="${BASH_REMATCH[1]}"
+                    s_end="${BASH_REMATCH[2]}"
+                fi
+                local target="$*"
+                if [ -n "$target" ]; then
+                    if [[ "$target" =~ ^https?:// ]]; then
+                        download_section "$s_start" "$s_end" "720" "$target"
+                    else
+                        search_and_play "$target" "down_section"
+                    fi
+                else
+                    download_section "$s_start" "$s_end" "" ""
                 fi
                 exit 0
                 ;;
