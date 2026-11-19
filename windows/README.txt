@@ -32,14 +32,15 @@ All multimedia engines are pre-packaged inside the "bin/" folder:
   - vulkan-1.dll      (Graphics compatibility runtime)
   - d3dcompiler_43.dll
 
-FEATURES (v1.4)
+FEATURES (v1.5)
 ---------------
 * Smooth video streaming in 360p, 480p, 720p, 1080p, and 60 FPS (GPU Auto-Safe).
 * MP4 video downloads with automatic chapter splitting and time trimming.
 * Modern native audio formats: MP3 (320k/192k/128k), M4A, Opus, and FLAC with cover art.
+* Optional SponsorBlock integration to skip sponsored segments on download.
+* Multilingual interface (10 languages) with dynamic YouTube search localization.
 * Subtitle and plain-text transcript extractor (.txt and .srt).
-* Safe download archive: prevents duplicate downloads automatically.
-* Private local watch history with auto-resume where you left off.
+* Private local watch history with auto-resume and quick item deletion.
 * Session cookie support for Brave, Chrome, Firefox, and Edge.
 * Dynamic Dark and Light themes.
 * Ultralow memory footprint (~22 MB RAM).
@@ -94,14 +95,15 @@ Todos los motores multimedia ya vienen incluidos dentro de la carpeta "bin/":
   - vulkan-1.dll      (Libreria de compatibilidad grafica)
   - d3dcompiler_43.dll
 
-CARACTERISTICAS (v1.4)
+CARACTERISTICAS (v1.5)
 ----------------------
 * Streaming fluido en 360p, 480p, 720p, 1080p y 60 FPS (GPU Auto-Safe).
 * Descargas MP4 (con division en capitulos y recorte por tiempo).
 * Audio multiformato nativo: MP3 (320k/192k/128k), M4A, Opus y FLAC con caratula.
+* Integracion opcional con SponsorBlock para saltar patrocinadores al descargar.
+* Interfaz multilingue (10 idiomas) con resultados de busqueda localizados.
 * Extraccion de subtitulos y transcripciones limpias en texto plano (.txt y .srt).
-* Historial seguro de descargas previas (evita duplicar descargas ya realizadas).
-* Historial local con reanudacion automatica donde lo dejaste.
+* Historial local privado con reanudacion automatica y borrado individual.
 * Soporte para cookies de sesion de Brave, Chrome, Firefox y Edge.
 * Modos visuales Tema Oscuro y Tema Claro.
 * Consumo ultrabajo de memoria RAM (~22 MB).

@@ -73,7 +73,8 @@ If you are familiar with terminal tools like `ytfzf`, here is how `YT-CLI` compa
 * 🔄 **Built-in yt-dlp Updater:** Type `:u` or `:update` in the prompt (or run `yt-cli -u`) to instantly check and update `yt-dlp` to the latest official release whenever YouTube algorithms change.
 * 📜 **Local History & Playback Resume:** Remembers watched videos (`yt-cli -H` or `:h`) with LRU ordering and resumes playback at the exact second you left off (`--save-position-on-quit`). 100% private and stored locally.
 * 🍪 **Browser Cookie Support:** Bypass age restrictions and bot check gates by passing session cookies from Brave, Chrome, Firefox, or Edge (`-c brave` / dropdown in GUI).
-* 🌐 **Bilingual System (Spanish & English):** Native internationalization with automatic OS language detection, runtime switcher (`:lang`), and CLI flag (`--lang`).
+* 🌐 **Multilingual System (10 Languages):** Native internationalization (`en`, `es`, `zh`, `hi`, `ar`, `pt`, `fr`, `de`, `ru`, `ja`) with automatic OS language detection, dynamic search language (`youtube:lang=...`), runtime switcher (`:lang` / GUI dropdown), and CLI flag (`--lang`).
+* ⏭️ **SponsorBlock Integration:** Automatically skip/remove sponsored segments on download (`-sb` / `--sponsorblock` on Linux or checkbox in Windows GUI).
 * 🪟 **Portable Windows GUI:** Standalone zero-install executable for Windows 7 SP1, 8.1, 10, and 11 with dark/light themes, progress bars, and dedicated audio mode.
 * 🔔 **Desktop Notifications:** Native non-blocking desktop notifications upon download completion.
 
@@ -243,12 +244,13 @@ Yes, absolutely. YT-CLI was designed specifically for low-resource computers. By
 </details>
 
 <details>
-<summary><b>4. How do I switch interface language between Spanish and English?</b></summary>
+<summary><b>4. How do I switch the interface and search language?</b></summary>
 <br>
-YT-CLI automatically detects your operating system language (from <code>$LANG</code>), but you can switch anytime:
+YT-CLI supports 10 languages out of the box (<code>en</code>, <code>es</code>, <code>zh</code>, <code>hi</code>, <code>ar</code>, <code>pt</code>, <code>fr</code>, <code>de</code>, <code>ru</code>, <code>ja</code>) and automatically detects your OS language:
 <ul>
-  <li>Inside the interactive prompt: type <code>:lang</code> (or <code>:lang en</code> / <code>:lang es</code>).</li>
-  <li>From the terminal on launch: run <code>yt-cli --lang en</code> or <code>yt-cli --lang es</code>.</li>
+  <li>On Windows GUI: pick your language from the top-right dropdown.</li>
+  <li>Inside the Linux interactive prompt: type <code>:lang</code> (or <code>:lang pt</code>, <code>:lang fr</code>, etc.).</li>
+  <li>From the Linux terminal on launch: run <code>yt-cli --lang en</code> (or any supported code).</li>
 </ul>
 Your choice is persisted in <code>~/.config/yt-cli/config</code>.
 </details>
@@ -280,10 +282,9 @@ sudo yt-dlp -U
 <br>
 Community translations are warmly welcomed! The localization system is modular and flat:
 <ol>
-  <li>Open the <code>lang/</code> directory in the repository.</li>
-  <li>Copy the base template <code>lang/en.sh</code> (e.g., <code>lang/pt.sh</code> for Portuguese, <code>lang/de.sh</code> for German, etc.).</li>
-  <li>Translate the strings inside quotes while keeping the variable names intact.</li>
-  <li>Submit a <b>Pull Request</b> on GitHub to have it included in the next release!</li>
+  <li>For Linux CLI: open <code>lang/</code>, copy <code>lang/en.sh</code> (e.g., <code>lang/it.sh</code> for Italian, <code>lang/ko.sh</code> for Korean, etc.), and translate the strings while keeping variable names intact. <code>bin/yt-cli</code> discovers new <code>.sh</code> packs automatically!</li>
+  <li>For Windows GUI: add your language entry inside <code>windows/locales_data.py</code>.</li>
+  <li>Submit a <b>Pull Request</b> on GitHub to include it in the next release!</li>
 </ol>
 </details>
 
@@ -303,10 +304,11 @@ Community translations are warmly welcomed! The localization system is modular a
 - [x] Hardware-agnostic GPU acceleration (`--hwdec=auto-safe`: Intel VA-API, AMD Mesa, Nvidia NVDEC) with 720p/1080p unlock (v1.2).
 - [x] Wayland (`wl-paste`) and X11 (`xclip` / `xsel`) clipboard detection (v1.2).
 - [x] Creator & channel search filtering (`@channel` or `@channel query`) (v1.2).
-- [x] Modular bilingual internationalization (Spanish & English in `lang/`, `--lang`, `:lang`) (v1.3).
-- [ ] Integrated `yt-dlp` self-updater from CLI command and GUI button (v1.3).
-- [ ] Custom user configuration presets (v1.3).
-- [ ] Optional SponsorBlock integration (v1.3).
+- [x] Modular multilingual internationalization: 10 languages + automatic discovery of community packs in `lang/` and `windows/locales_data.py` (v1.5).
+- [x] Integrated `yt-dlp` self-updater on Linux CLI (`-u` / `:u`).
+- [x] Optional SponsorBlock integration (`-sb` / `--sponsorblock` on Linux, checkbox in Windows GUI) (v1.5).
+- [ ] SponsorBlock profile presets & `--sponsorblock-mark` chapters in MPV (planned for v1.6).
+- [ ] Local channel autocomplete & quick channel jump from results (planned for v1.6).
 
 ---
 

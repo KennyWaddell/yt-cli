@@ -73,6 +73,8 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
 * 🔄 **Actualizador integrado de yt-dlp:** Escribe `:u` o `:update` en el buscador interactivo (o ejecuta `yt-cli -u`) para actualizar `yt-dlp` a su versión más reciente cuando YouTube cambie sus algoritmos.
 * 📜 **Historial local y reanudación automática:** Recuerda tus últimos videos vistos (`yt-cli -H` o `:h`) con reordenamiento inteligente y retoma la reproducción exactamente en el segundo donde lo dejaste (`--save-position-on-quit`). Totalmente privado, local y configurable.
 * 🍪 **Soporte de cookies de navegador:** Supera restricciones de edad o avisos de bot pasando cookies de Brave, Chrome, Firefox o Edge (`-c brave` / desplegable en GUI).
+* 🌐 **Sistema Multilingüe (10 Idiomas):** Internacionalización nativa (`en`, `es`, `zh`, `hi`, `ar`, `pt`, `fr`, `de`, `ru`, `ja`) con autodetección del idioma del sistema, resultados dinámicos (`youtube:lang=...`), selector en tiempo real (`:lang` / menú en GUI) y flag `--lang`.
+* ⏭️ **SponsorBlock integrado:** Salta o elimina automáticamente menciones patrocinadas al descargar (`-sb` / `--sponsorblock` en Linux o casilla en la GUI de Windows).
 * 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz moderna y ligera sin instalaciones complejas, con tema oscuro/claro, descargas interactivas, barra de progreso y reproductor de audio dedicado.
 * 🌐 **Soporte Multiplataforma:** No solo funciona con YouTube; puedes pegar enlaces directos de **TikTok, Twitter/X, Instagram Reels, Twitch, Reddit, SoundCloud y más de 1.000 sitios soportados**.
 * 🔔 **Notificaciones de escritorio:** Alerta nativa no bloqueante al finalizar descargas en segundo plano.
@@ -234,12 +236,13 @@ Sí, absolutamente. YT-CLI fue diseñado específicamente pensando en computador
 </details>
 
 <details>
-<summary><b>4. ¿Cómo cambio el idioma de la aplicación (Español / Inglés)?</b></summary>
+<summary><b>4. ¿Cómo cambio el idioma de la aplicación y de las búsquedas?</b></summary>
 <br>
-YT-CLI detecta automáticamente el idioma de tu sistema operativo (variable <code>$LANG</code>), pero puedes cambiarlo manualmente en cualquier momento:
+YT-CLI soporta 10 idiomas de fábrica (<code>en</code>, <code>es</code>, <code>zh</code>, <code>hi</code>, <code>ar</code>, <code>pt</code>, <code>fr</code>, <code>de</code>, <code>ru</code>, <code>ja</code>) y detecta automáticamente el idioma de tu sistema operativo:
 <ul>
-  <li>Desde la consola interactiva: escribe el comando <code>:lang</code> (o directamente <code>:lang en</code> / <code>:lang es</code>).</li>
-  <li>Desde la terminal al iniciar: ejecuta <code>yt-cli --lang en</code> o <code>yt-cli --lang es</code>.</li>
+  <li>En la GUI de Windows: elige tu idioma desde el desplegable superior derecho.</li>
+  <li>En la consola interactiva de Linux: escribe <code>:lang</code> (o directamente <code>:lang pt</code>, <code>:lang fr</code>, etc.).</li>
+  <li>Desde la terminal de Linux al iniciar: ejecuta <code>yt-cli --lang en</code> (o cualquier código disponible).</li>
 </ul>
 Tu preferencia quedará guardada de forma persistente en <code>~/.config/yt-cli/config</code>.
 </details>
@@ -271,9 +274,8 @@ sudo yt-dlp -U
 <br>
 ¡Las contribuciones comunitarias son bienvenidas! El sistema de internacionalización de YT-CLI es modular y plano:
 <ol>
-  <li>Ve a la carpeta <code>lang/</code> del repositorio.</li>
-  <li>Haz una copia del archivo base <code>lang/en.sh</code> (por ejemplo, <code>lang/pt.sh</code> para portugués, <code>lang/fr.sh</code> para francés, etc.).</li>
-  <li>Traduce las cadenas de texto entre comillas respetando los nombres de variables.</li>
+  <li>Para Linux CLI: ve a <code>lang/</code>, copia <code>lang/en.sh</code> (por ejemplo, <code>lang/it.sh</code> para italiano, <code>lang/ko.sh</code> para coreano, etc.) y traduce las cadenas manteniendo los nombres de variables. ¡<code>bin/yt-cli</code> detecta automáticamente los nuevos archivos <code>.sh</code>!</li>
+  <li>Para Windows GUI: añade tu idioma en <code>windows/locales_data.py</code>.</li>
   <li>Abre un <b>Pull Request</b> en GitHub para incluirlo oficialmente en la próxima versión.</li>
 </ol>
 </details>
@@ -294,10 +296,11 @@ sudo yt-dlp -U
 - [x] Aceleración agnóstica por hardware (`--hwdec=auto-safe`: Intel VA-API, AMD Mesa, Nvidia NVDEC) y desbloqueo de 720p/1080p (v1.2).
 - [x] Soporte para portapapeles en Wayland (`wl-paste`) y X11 (`xclip` / `xsel`) (v1.2).
 - [x] Filtrado y búsqueda directa en canales específicos (`@canal` o `@canal término`) (v1.2).
-- [x] Internacionalización (i18n): Sistema bilingüe modular en español e inglés (`lang/es.sh`, `lang/en.sh`, `--lang`, `:lang`) (v1.3).
-- [ ] Actualizador integrado de `yt-dlp` desde comando CLI y botón en GUI (previsto para v1.3).
-- [ ] Presets y plantillas de configuración personalizadas (previsto para v1.3).
-- [ ] Soporte opcional para SponsorBlock (previsto para v1.3).
+- [x] Internacionalización (i18n): Sistema multilingüe modular con 10 idiomas + autodetección de paquetes comunitarios en `lang/` y `windows/locales_data.py` (v1.5).
+- [x] Actualizador integrado de `yt-dlp` en Linux CLI (`-u` / `:u`).
+- [x] Soporte opcional para SponsorBlock (`-sb` / `--sponsorblock` en Linux, casilla en GUI de Windows) (v1.5).
+- [ ] Perfiles de categorías SponsorBlock y capítulos `--sponsorblock-mark` en MPV (previsto para v1.6).
+- [ ] Autocompletado local de canales y acceso rápido al canal desde resultados (previsto para v1.6).
 
 ---
 
