@@ -35,6 +35,8 @@ Modern web browsers (Brave, Chrome, Firefox) typically consume between **900 MB 
 | **Audio-Only Mode (Podcast/Music)** | 600 MB - 800 MB | **~25 MB** |
 | **Privacy** | Tracking cookies & cloud analytics | **100% Private (Zero telemetry / Local-only history)** |
 
+> **Test Environments:** Reference metrics measured on legacy dual-core iGPU hardware (H.264 720p@30fps via `d3d11va`/`vaapi`). Verified on **Debian Linux**, **Windows 10 (1609 LTSB)**, and **Windows 8.1 Lite** (built with Python 3.8.10 for Windows 7 SP1 compatibility; Win7 validation in progress).
+
 ---
 
 ## 🥊 How Does YT-CLI Differ from ytfzf?
@@ -201,10 +203,12 @@ yt-cli --lang es
 YT-CLI provides an official, native standalone package for **Windows 7 SP1, 8.1, 10, and 11 (64-bit)**. It does not require installing Python, configuring dependencies, or modifying system `PATH`.
 
 ### Quick Steps:
-1. Go to [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) and download **`YT-CLI-Windows-Portable.zip`**.
+1. Go to [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) and download **`YT-CLI-Windows-Portable.zip`** (every release is compiled transparently in GitHub Actions with `SHA256.txt` verification and automated VM smoke tests).
 2. Extract the `.zip` archive to any folder.
 3. Double-click **`YT-CLI.exe`** to launch immediately.
 4. *(Optional)* Right-click `YT-CLI.exe` -> *Send to* -> *Desktop (create shortcut)*.
+
+> **Security & Cookies Note:** YT-CLI never reads, copies, or stores your browser cookies in plaintext files—session cookies are delegated directly in-memory to `yt-dlp --cookies-from-browser`. See [CONTRIBUTING.md](CONTRIBUTING.md) and `tests/` for automated CI checks.
 
 ---
 

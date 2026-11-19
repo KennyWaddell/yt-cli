@@ -1,0 +1,39 @@
+name: CI Tests & Linting (YT-CLI)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    name: ShellCheck, Python Lint y Tests Unitarios
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar herramientas de análisis (ShellCheck y Ruff)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          pip install --quiet ruff
+
+      - name: Verificar scripts Bash con ShellCheck (nivel error)
+        run: |
+          shellcheck -S error bin/yt-cli install.sh uninstall.sh
+
+      - name: Verificar código Python con Ruff (errores críticos)
+        run: |
+          ruff check --select E9,F63,F7,F82 windows/ tests/
+
+      - name: Ejecutar suite de tests unitarios e i18n
+        run: |
+          python3 -m unittest discover -s tests -v

@@ -35,6 +35,8 @@ En navegadores web modernos (Brave, Chrome, Firefox), abrir YouTube consume entr
 | **Modo Solo Audio (Música/Podcast)** | 600 MB - 800 MB | **~25 MB** |
 | **Privacidad** | Rastreadores y telemetría en la nube | **100% Privado (Cero telemetría / Historial solo local y opcional)** |
 
+> **Entornos de Prueba:** Métricas de referencia medidas en hardware dual-core de bajos recursos con gráfica integrada (H.264 720p@30fps vía `d3d11va`/`vaapi`). Probado en **Debian Linux**, **Windows 10 (1609 LTSB)** y **Windows 8.1 Lite** (compilado con Python 3.8.10 para compatibilidad con Windows 7 SP1; validación en Win7 en curso).
+
 ---
 
 ## 🥊 ¿En qué se diferencia YT-CLI de ytfzf?
@@ -193,10 +195,12 @@ yt-cli -d "https://www.tiktok.com/@usuario/video/..."
 YT-CLI incluye una versión oficial con interfaz gráfica moderna y ligera para **Windows 7 SP1, 8.1, 10 y 11 (64-bit)**. No requiere instalar Python, ni configurar dependencias, ni tocar el `PATH` del sistema.
 
 ### Pasos rápidos:
-1. Ve a la sección de [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) y descarga **`YT-CLI-Windows-Portable.zip`**.
+1. Ve a la sección de [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) y descarga **`YT-CLI-Windows-Portable.zip`** (compilado de forma transparente en GitHub Actions con suma `SHA256.txt` y pruebas automáticas en VM de Windows).
 2. Descomprime el archivo `.zip` en la carpeta que prefieras.
 3. Haz doble clic en **`YT-CLI.exe`** para iniciar la aplicación de inmediato.
 4. *(Opcional)*: Haz clic derecho en `YT-CLI.exe` -> *Enviar a* -> *Escritorio (crear acceso directo)* para tenerlo a mano con su icono oficial.
+
+> **Nota de Seguridad y Cookies:** YT-CLI nunca copia ni guarda tus cookies de sesión en archivos propios sin cifrar; delega directamente en `yt-dlp --cookies-from-browser`. Consulta [CONTRIBUTING.md](CONTRIBUTING.md) y `tests/` para ver las pruebas automatizadas de CI.
 
 ---
 
