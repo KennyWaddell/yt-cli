@@ -253,6 +253,9 @@ class YtCliGUI:
         self.current_theme = settings.get("theme", "dark")
         self.current_lang = settings.get("lang", "es")
         self.sponsorblock_enabled = settings.get("sponsorblock", False)
+        self.sponsorblock_profile = settings.get("sponsorblock_profile", "basic")
+        self.sponsorblock_mark = settings.get("sponsorblock_mark", False)
+        self._channel_popup = None
 
         self.msg_queue = queue.Queue()
         self.active_process = None
@@ -376,6 +379,7 @@ class YtCliGUI:
         self.entry_query.bind("<Return>", lambda e: self.start_search())
         self.entry_query.bind("<FocusIn>", self._on_query_focus_in)
         self.entry_query.bind("<FocusOut>", self._on_query_focus_out)
+        self.entry_query.bind("<KeyRelease>", self._on_query_key_release)
 
         self.btn_paste = tk.Button(
             search_inner,
@@ -732,6 +736,94 @@ class YtCliGUI:
         settings["theme"] = new_theme
         save_settings(settings)
 
+    def get_sponsorblock_cats(self, profile=None):
+        prof = (profile or self.sponsorblock_profile or "basic").lower()
+        mapping = {
+            "basic": "sponsor,selfpromo",
+            "standard": "sponsor,selfpromo,interaction,intro,outro",
+            "all": "all",
+        }
+        return mapping.get(prof, "sponsor,selfpromo")
+
+    def _get_known_channels(self):
+        """Obtiene nombres de canales desde resultados en memoria e historial local (0 ms red)."""
+        channels = []
+        seen = set()
+        for item in self.last_search_results:
+            if len(item) >= 2 and item[1] and item[1] not in ("Enlace Web", "NA"):
+                ch = item[1].strip()
+                if ch.lower() not in seen:
+                    seen.add(ch.lower())
+                    channels.append(ch)
+        for entry in load_history_data().get("history", []):
+            ch = (entry.get("channel") or "").strip()
+            if ch and ch not in ("Enlace Web", "NA") and ch.lower() not in seen:
+                seen.add(ch.lower())
+                channels.append(ch)
+        return channels
+
+    def _close_channel_popup(self):
+        if self._channel_popup is not None:
+            try:
+                self._channel_popup.destroy()
+            except Exception:
+                pass
+            self._channel_popup = None
+
+    def _on_query_key_release(self, event=None):
+        if event and event.keysym in ("Return", "Escape", "Tab"):
+            self._close_channel_popup()
+            return
+        text = self._get_query_text()
+        if not text.startswith("@") or " " in text:
+            self._close_channel_popup()
+            return
+        term = text[1:].lower()
+        matches = [
+            ch for ch in self._get_known_channels()
+            if not term or term in ch.lower()
+        ][:8]
+        if not matches:
+            self._close_channel_popup()
+            return
+
+        self._close_channel_popup()
+        pal = THEMES[self.current_theme]
+        popup = tk.Toplevel(self.root)
+        popup.wm_overrideredirect(True)
+        x = self.entry_query.winfo_rootx()
+        y = self.entry_query.winfo_rooty() + self.entry_query.winfo_height()
+        w = min(360, self.entry_query.winfo_width())
+        popup.geometry(f"{w}x{min(160, 22 * len(matches) + 4)}+{x}+{y}")
+        lb = tk.Listbox(
+            popup,
+            bg=pal["card_bg"],
+            fg=pal["fg"],
+            selectbackground=pal["tree_select"],
+            selectforeground="#ffffff",
+            font=("sans-serif", 9),
+            bd=1,
+            relief="solid",
+            activestyle="none"
+        )
+        lb.pack(fill=tk.BOTH, expand=True)
+        for ch in matches:
+            handle = ch.replace(" ", "") if " " in ch else ch
+            lb.insert(tk.END, f"@{handle}  ({ch})" if handle != ch else f"@{ch}")
+
+        def apply_choice(evt=None):
+            sel = lb.curselection()
+            if not sel:
+                return
+            chosen = lb.get(sel[0]).split("  (", 1)[0].strip()
+            self._set_query_text(chosen + " ")
+            self.entry_query.icursor(tk.END)
+            self._close_channel_popup()
+
+        lb.bind("<ButtonRelease-1>", apply_choice)
+        lb.bind("<Return>", apply_choice)
+        self._channel_popup = popup
+
     def get_strings(self):
         base = GUI_STRINGS["en"]
         lang_dict = GUI_STRINGS.get(self.current_lang, base)
@@ -761,6 +853,7 @@ class YtCliGUI:
         self._hide_placeholder()
 
     def _on_query_focus_out(self, event=None):
+        self.root.after(150, self._close_channel_popup)
         if not self.entry_query.get().strip():
             self._show_placeholder()
 
@@ -1099,9 +1192,21 @@ class YtCliGUI:
         if not self.tree.get_children():
             self.show_last_search()
 
-    def on_tree_right_click(self, event):
-        if not self.is_viewing_history:
+    def open_channel_from_selected(self):
+        selected = self.tree.selection()
+        if not selected:
             return
+        vals = self.tree.item(selected[0], "values")
+        if not vals or len(vals) < 2:
+            return
+        ch = (vals[1] or "").strip()
+        if not ch or ch in ("Enlace Web", "NA"):
+            return
+        query = f"@{ch}" if " " not in ch else ch
+        self._set_query_text(query)
+        self.start_search()
+
+    def on_tree_right_click(self, event):
         row_id = self.tree.identify_row(event.y)
         if not row_id:
             return
@@ -1109,9 +1214,11 @@ class YtCliGUI:
             self.tree.selection_set(row_id)
         s = self.get_strings()
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label=s["hist_remove_item"], command=self.remove_selected_from_history)
-        menu.add_separator()
-        menu.add_command(label=s["hist_clear_all"], command=self.clear_history_from_view)
+        menu.add_command(label=s["open_channel"], command=self.open_channel_from_selected)
+        if self.is_viewing_history:
+            menu.add_separator()
+            menu.add_command(label=s["hist_remove_item"], command=self.remove_selected_from_history)
+            menu.add_command(label=s["hist_clear_all"], command=self.clear_history_from_view)
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -1132,7 +1239,7 @@ class YtCliGUI:
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl_title = tk.Label(dialog, text="YT-CLI v1.5", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl_title = tk.Label(dialog, text="YT-CLI v1.6", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl_title.pack(pady=(14, 2))
 
         is_en = self.current_lang == "en"
@@ -1200,8 +1307,8 @@ class YtCliGUI:
         data = load_history_data()
 
         dialog = tk.Toplevel(self.root)
-        dialog.title("Ajustes de Historial")
-        dialog.geometry("380x210")
+        dialog.title("Opciones" if self.current_lang == "es" else "Options")
+        dialog.geometry("400x250")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -1209,7 +1316,7 @@ class YtCliGUI:
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl = tk.Label(dialog, text="Historial de Reproducción", font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl = tk.Label(dialog, text="Historial y Reproducción" if self.current_lang == "es" else "History & Playback", font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl.pack(pady=(14, 8))
 
         var_enabled = tk.BooleanVar(value=data.get("enabled", True))
@@ -1223,7 +1330,21 @@ class YtCliGUI:
             selectcolor=pal["entry_bg"],
             activebackground=pal["card_bg"]
         )
-        cb.pack(pady=(0, 6), padx=20, anchor="w")
+        cb.pack(pady=(0, 4), padx=20, anchor="w")
+
+        s = self.get_strings()
+        var_sb_mark = tk.BooleanVar(value=self.sponsorblock_mark)
+        cb_sb_mark = tk.Checkbutton(
+            dialog,
+            text=s["sb_mark_mpv"],
+            variable=var_sb_mark,
+            font=("sans-serif", 9),
+            bg=pal["card_bg"],
+            fg=pal["fg"],
+            selectcolor=pal["entry_bg"],
+            activebackground=pal["card_bg"]
+        )
+        cb_sb_mark.pack(pady=(0, 6), padx=20, anchor="w")
 
         lbl_limit = tk.Label(dialog, text="Límite: hasta 50 vídeos recientes (rotación automática)", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg_muted"])
         lbl_limit.pack(pady=(0, 14), padx=22, anchor="w")
@@ -1240,6 +1361,10 @@ class YtCliGUI:
         def save_and_close():
             data["enabled"] = var_enabled.get()
             save_history_data(data)
+            self.sponsorblock_mark = var_sb_mark.get()
+            settings = load_settings()
+            settings["sponsorblock_mark"] = self.sponsorblock_mark
+            save_settings(settings)
             dialog.destroy()
             state_str = "activado" if data["enabled"] else "desactivado"
             self.status_var.set(f"Historial {state_str}.")
@@ -1314,6 +1439,9 @@ class YtCliGUI:
             else:
                 warn_msg = f"Notice: Browser {cookie_choice} not detected. Continuing without cookies..." if is_en else f"Aviso: Navegador {cookie_choice} no detectado. Continuando sin cookies..."
                 self.status_var.set(warn_msg)
+
+        if self.sponsorblock_mark:
+            cmd.append(f"--ytdl-raw-options-append=sponsorblock-mark={self.get_sponsorblock_cats()}")
 
         if audio_only:
             # Ventana interactiva de audio con barra de tiempo, volumen, pausa y bucle
@@ -1428,9 +1556,14 @@ class YtCliGUI:
         cb_split = tk.Checkbutton(dialog, text="Split by chapters (--split-chapters)" if is_en else "Dividir en capítulos automáticos", variable=var_split, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
         cb_split.pack(pady=2, padx=22, anchor="w")
 
+        row_sb = tk.Frame(dialog, bg=pal["card_bg"])
+        row_sb.pack(fill=tk.X, padx=22, pady=2)
         var_sb = tk.BooleanVar(value=self.sponsorblock_enabled)
-        cb_sb = tk.Checkbutton(dialog, text=s["sponsorblock"], variable=var_sb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
-        cb_sb.pack(pady=2, padx=22, anchor="w")
+        cb_sb = tk.Checkbutton(row_sb, text=s["sponsorblock"], variable=var_sb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_sb.pack(side=tk.LEFT)
+        var_sb_prof = tk.StringVar(value=self.sponsorblock_profile.capitalize())
+        cb_sb_prof = ttk.Combobox(row_sb, textvariable=var_sb_prof, values=["Basic", "Standard", "All"], width=8, state="readonly")
+        cb_sb_prof.pack(side=tk.RIGHT)
 
         trim_frame = tk.LabelFrame(dialog, text="Trim Time Section" if is_en else "Recortar fragmento de tiempo", font=("sans-serif", 8, "bold"), bg=pal["card_bg"], fg=pal["fg_muted"], bd=1, padx=8, pady=4)
         trim_frame.pack(fill=tk.X, padx=22, pady=(6, 10))
@@ -1458,9 +1591,12 @@ class YtCliGUI:
             thumb = var_thumb.get()
             split = var_split.get()
             sb = var_sb.get()
+            sb_prof = var_sb_prof.get().lower()
             self.sponsorblock_enabled = sb
+            self.sponsorblock_profile = sb_prof
             settings = load_settings()
             settings["sponsorblock"] = sb
+            settings["sponsorblock_profile"] = sb_prof
             save_settings(settings)
             trim_spec = ""
             if var_trim.get():
@@ -1469,7 +1605,7 @@ class YtCliGUI:
                 if s_val and e_val and (s_val != "00:00" or e_val != "00:00"):
                     trim_spec = f"{s_val}-{e_val}"
             dialog.destroy()
-            self.start_download(mode="video", quality=q, fps=fps, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec, sponsorblock=sb)
+            self.start_download(mode="video", quality=q, fps=fps, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec, sponsorblock=sb, sponsorblock_profile=sb_prof)
 
         btn = tk.Button(dialog, text="Start Download" if is_en else "Iniciar Descarga", command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=5, cursor="hand2")
         btn.pack(pady=(4, 0))
@@ -1532,9 +1668,14 @@ class YtCliGUI:
         cb_split = tk.Checkbutton(dialog, text="Split tracks/chapters (--split-chapters)" if is_en else "Dividir en pistas/capítulos automáticos", variable=var_split, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
         cb_split.pack(pady=2, padx=22, anchor="w")
 
+        row_sb = tk.Frame(dialog, bg=pal["card_bg"])
+        row_sb.pack(fill=tk.X, padx=22, pady=2)
         var_sb = tk.BooleanVar(value=self.sponsorblock_enabled)
-        cb_sb = tk.Checkbutton(dialog, text=s["sponsorblock"], variable=var_sb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
-        cb_sb.pack(pady=2, padx=22, anchor="w")
+        cb_sb = tk.Checkbutton(row_sb, text=s["sponsorblock"], variable=var_sb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_sb.pack(side=tk.LEFT)
+        var_sb_prof = tk.StringVar(value=self.sponsorblock_profile.capitalize())
+        cb_sb_prof = ttk.Combobox(row_sb, textvariable=var_sb_prof, values=["Basic", "Standard", "All"], width=8, state="readonly")
+        cb_sb_prof.pack(side=tk.RIGHT)
 
         trim_frame = tk.LabelFrame(dialog, text="Trim Time Section" if is_en else "Recortar fragmento de tiempo", font=("sans-serif", 8, "bold"), bg=pal["card_bg"], fg=pal["fg_muted"], bd=1, padx=8, pady=4)
         trim_frame.pack(fill=tk.X, padx=22, pady=(6, 10))
@@ -1562,9 +1703,12 @@ class YtCliGUI:
             thumb = var_thumb.get()
             split = var_split.get()
             sb = var_sb.get()
+            sb_prof = var_sb_prof.get().lower()
             self.sponsorblock_enabled = sb
+            self.sponsorblock_profile = sb_prof
             settings = load_settings()
             settings["sponsorblock"] = sb
+            settings["sponsorblock_profile"] = sb_prof
             save_settings(settings)
             trim_spec = ""
             if var_trim.get():
@@ -1573,12 +1717,12 @@ class YtCliGUI:
                 if s_val and e_val and (s_val != "00:00" or e_val != "00:00"):
                     trim_spec = f"{s_val}-{e_val}"
             dialog.destroy()
-            self.start_download(mode="audio", audio_format=fmt, bitrate=br, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec, sponsorblock=sb)
+            self.start_download(mode="audio", audio_format=fmt, bitrate=br, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec, sponsorblock=sb, sponsorblock_profile=sb_prof)
 
         btn = tk.Button(dialog, text="Start Download" if is_en else "Iniciar Descarga", command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=5, cursor="hand2")
         btn.pack(pady=(4, 0))
 
-    def start_download(self, mode="video", quality="720", fps="30", audio_format="mp3", bitrate="320k", embed_thumb=True, split_chapters=False, trim_section="", sponsorblock=False):
+    def start_download(self, mode="video", quality="720", fps="30", audio_format="mp3", bitrate="320k", embed_thumb=True, split_chapters=False, trim_section="", sponsorblock=False, sponsorblock_profile="basic"):
         urls = self.get_selected_urls()
         if not urls:
             is_en = self.current_lang != "es"
@@ -1599,7 +1743,7 @@ class YtCliGUI:
 
         thread = threading.Thread(
             target=self._download_worker,
-            args=(urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section, sponsorblock),
+            args=(urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section, sponsorblock, sponsorblock_profile),
             daemon=True
         )
         thread.start()
@@ -1639,7 +1783,7 @@ class YtCliGUI:
             pass
         return log_path
 
-    def _download_worker(self, urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section, sponsorblock=False):
+    def _download_worker(self, urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section, sponsorblock=False, sponsorblock_profile="basic"):
         ytdlp_cmd = get_binary_path("yt-dlp")
         ffmpeg_cmd = get_binary_path("ffmpeg")
         bin_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
@@ -1692,7 +1836,7 @@ class YtCliGUI:
                 base_cmd += ["--cookies-from-browser", cookie_choice.lower()]
 
             if sponsorblock:
-                base_cmd += ["--sponsorblock-remove", "sponsor,selfpromo"]
+                base_cmd += ["--sponsorblock-remove", self.get_sponsorblock_cats(sponsorblock_profile)]
 
             if mode == "video":
                 fps_filter = ""

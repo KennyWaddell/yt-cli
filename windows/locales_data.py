@@ -53,6 +53,8 @@ GUI_STRINGS = {
         "stop": "■ Detener",
         "ready": "Listo.",
         "sponsorblock": "Saltar patrocinadores (SponsorBlock)",
+        "sb_mark_mpv": "Marcar segmentos SponsorBlock como capítulos en MPV",
+        "open_channel": "Ver vídeos de este canal",
     },
     "en": {
         "title": "YT-CLI",
@@ -89,6 +91,8 @@ GUI_STRINGS = {
         "stop": "■ Stop",
         "ready": "Ready.",
         "sponsorblock": "Skip sponsors (SponsorBlock)",
+        "sb_mark_mpv": "Mark SponsorBlock segments as chapters in MPV",
+        "open_channel": "View videos from this channel",
     },
     "zh": {
         "title": "YT-CLI",
@@ -125,6 +129,8 @@ GUI_STRINGS = {
         "stop": "■ 停止",
         "ready": "就绪。",
         "sponsorblock": "跳过赞助片段 (SponsorBlock)",
+        "sb_mark_mpv": "在 MPV 中将赞助片段标记为章节",
+        "open_channel": "查看该频道的视频",
     },
     "hi": {
         "title": "YT-CLI",
@@ -161,6 +167,8 @@ GUI_STRINGS = {
         "stop": "■ रोकें",
         "ready": "तैयार।",
         "sponsorblock": "स्पॉन्सर छोड़ें (SponsorBlock)",
+        "sb_mark_mpv": "MPV में SponsorBlock सेगमेंट को अध्याय के रूप में चिह्नित करें",
+        "open_channel": "इस चैनल के वीडियो देखें",
     },
     "ar": {
         "title": "YT-CLI",
@@ -197,6 +205,8 @@ GUI_STRINGS = {
         "stop": "■ إيقاف",
         "ready": "جاهز.",
         "sponsorblock": "تخطي الرعاة (SponsorBlock)",
+        "sb_mark_mpv": "وضع علامة على مقاطع SponsorBlock كفصول في MPV",
+        "open_channel": "عرض فيديوهات هذه القناة",
     },
     "pt": {
         "title": "YT-CLI",
@@ -233,6 +243,8 @@ GUI_STRINGS = {
         "stop": "■ Parar",
         "ready": "Pronto.",
         "sponsorblock": "Pular patrocinadores (SponsorBlock)",
+        "sb_mark_mpv": "Marcar segmentos SponsorBlock como capítulos no MPV",
+        "open_channel": "Ver vídeos deste canal",
     },
     "fr": {
         "title": "YT-CLI",
@@ -269,6 +281,8 @@ GUI_STRINGS = {
         "stop": "■ Arrêter",
         "ready": "Prêt.",
         "sponsorblock": "Ignorer les sponsors (SponsorBlock)",
+        "sb_mark_mpv": "Marquer les segments SponsorBlock comme chapitres dans MPV",
+        "open_channel": "Voir les vidéos de cette chaîne",
     },
     "de": {
         "title": "YT-CLI",
@@ -305,6 +319,8 @@ GUI_STRINGS = {
         "stop": "■ Stoppen",
         "ready": "Bereit.",
         "sponsorblock": "Sponsoren überspringen (SponsorBlock)",
+        "sb_mark_mpv": "SponsorBlock-Segmente in MPV als Kapitel markieren",
+        "open_channel": "Videos dieses Kanals ansehen",
     },
     "ru": {
         "title": "YT-CLI",
@@ -341,6 +357,8 @@ GUI_STRINGS = {
         "stop": "■ Стоп",
         "ready": "Готово.",
         "sponsorblock": "Пропускать рекламу (SponsorBlock)",
+        "sb_mark_mpv": "Отмечать сегменты SponsorBlock как главы в MPV",
+        "open_channel": "Видео этого канала",
     },
     "ja": {
         "title": "YT-CLI",
@@ -377,5 +395,7 @@ GUI_STRINGS = {
         "stop": "■ 停止",
         "ready": "準備完了。",
         "sponsorblock": "スポンサーをスキップ (SponsorBlock)",
+        "sb_mark_mpv": "MPV で SponsorBlock 区間をチャプターとしてマーク",
+        "open_channel": "このチャンネルの動画を見る",
     },
 }

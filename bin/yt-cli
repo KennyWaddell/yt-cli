@@ -107,10 +107,19 @@ ensure_config_file() {
 
 # Skip sponsored segments automatically on downloads (SponsorBlock)
 # SPONSORBLOCK=false
+# SPONSORBLOCK_CATS="sponsor,selfpromo"
+# SPONSORBLOCK_MARK=false
+
+# Maximum framerate limit (30 | 60 | auto)
+# MAX_FPS=30
 EOF
     fi
 }
 ensure_config_file
+
+MAX_FPS="30"
+SPONSORBLOCK_CATS="sponsor,selfpromo"
+SPONSORBLOCK_MARK="false"
 
 if [ -f "$CONFIG_FILE" ]; then
     if grep -Eq '^[[:space:]]*ENABLE_ARIA2=(true|1)' "$CONFIG_FILE" 2>/dev/null; then
@@ -124,8 +133,19 @@ if [ -f "$CONFIG_FILE" ]; then
         r_wait=$(grep -E '^[[:space:]]*RETRY_WAIT=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
         [ -n "$r_wait" ] && EXTRA_YTDL_ARGS+=("--retry-wait" "$r_wait")
     fi
+    if grep -Eq '^[[:space:]]*MAX_FPS=' "$CONFIG_FILE" 2>/dev/null; then
+        cfg_fps=$(grep -E '^[[:space:]]*MAX_FPS=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
+        [ -n "$cfg_fps" ] && MAX_FPS="${cfg_fps,,}"
+    fi
+    if grep -Eq '^[[:space:]]*SPONSORBLOCK_CATS=' "$CONFIG_FILE" 2>/dev/null; then
+        cfg_cats=$(grep -E '^[[:space:]]*SPONSORBLOCK_CATS=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
+        [ -n "$cfg_cats" ] && SPONSORBLOCK_CATS="$cfg_cats"
+    fi
     if grep -Eq '^[[:space:]]*SPONSORBLOCK=(true|1)' "$CONFIG_FILE" 2>/dev/null; then
-        EXTRA_YTDL_ARGS+=("--sponsorblock-remove" "sponsor,selfpromo")
+        EXTRA_YTDL_ARGS+=("--sponsorblock-remove" "$SPONSORBLOCK_CATS")
+    fi
+    if grep -Eq '^[[:space:]]*SPONSORBLOCK_MARK=(true|1)' "$CONFIG_FILE" 2>/dev/null; then
+        SPONSORBLOCK_MARK="true"
     fi
 fi
 
@@ -644,31 +664,52 @@ play_videos() {
             "--ytdl-format=bestaudio[ext=m4a]/bestaudio/best"
         )
     else
-        local ytdl_fmt=""
+        local fps_filter=""
+        case "${MAX_FPS,,}" in
+            auto) fps_filter="" ;;
+            60)   fps_filter="[fps<=60]" ;;
+            30|*) fps_filter="[fps<=30]" ;;
+        esac
+
+        local target_h="720"
         case "$quality" in
             360)
                 echo -e "${C_CYAN}${MSG_MPV_PLAY_360}${C_RESET}"
-                ytdl_fmt="bestvideo[vcodec^=avc1][height<=360][fps<=30]+bestaudio/best[vcodec^=avc1][height<=360]/best[height<=360]/best"
+                target_h="360"
                 ;;
             480)
                 echo -e "${C_CYAN}${MSG_MPV_PLAY_480}${C_RESET}"
-                ytdl_fmt="bestvideo[vcodec^=avc1][height<=480][fps<=30]+bestaudio/best[vcodec^=avc1][height<=480]/best[height<=480]/best"
+                target_h="480"
                 ;;
             1080)
+                if [ -z "${FPS_CLI_OVERRIDE:-}" ]; then
+                    echo -ne "${C_YELLOW}${MSG_FPS_PROMPT:-FPS: [1] 30fps (Estándar) ★ | [2] 60fps (Enter para 30): }${C_RESET}"
+                    local fps_opt=""
+                    if [ -t 0 ]; then read -r fps_opt || fps_opt="1"; else read -r fps_opt </dev/tty || fps_opt="1"; fi
+                    case "$fps_opt" in
+                        2|60) fps_filter="[fps<=60]" ;;
+                        *)    fps_filter="[fps<=30]" ;;
+                    esac
+                fi
                 echo -e "${C_CYAN}${MSG_MPV_PLAY_1080}${C_RESET}"
-                ytdl_fmt="bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio/bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[vcodec^=avc1][height<=1080]/best[vcodec^=avc1][height<=720]/best[height<=720]/best"
+                target_h="1080"
                 ;;
             720|*)
                 echo -e "${C_CYAN}${MSG_MPV_PLAY_720}${C_RESET}"
-                ytdl_fmt="bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[vcodec^=avc1][height<=720]/best[height<=720]/best"
+                target_h="720"
                 ;;
         esac
+
+        local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${target_h}]${fps_filter}+bestaudio/bestvideo[height<=${target_h}]${fps_filter}+bestaudio/bestvideo[height<=${target_h}]+bestaudio/best[height<=${target_h}]${fps_filter}/best[height<=${target_h}]/best"
 
         MPV_ARGS+=(
             "--hwdec=auto-safe"
             "--vo=gpu"
             "--ytdl-format=${ytdl_fmt}"
         )
+        if [ "$SPONSORBLOCK_MARK" = "true" ]; then
+            MPV_ARGS+=("--ytdl-raw-options-append=sponsorblock-mark=${SPONSORBLOCK_CATS}")
+        fi
     fi
 
     # Formatear URLs con prefijo ytdl://
@@ -1426,7 +1467,10 @@ main() {
                 echo "  -H, --history                 Abrir el historial de vídeos vistos"
                 echo "      --clear-history           Borrar todo el historial guardado"
                 echo "      --clear-archive           Reiniciar el registro de vídeos ya descargados"
+                echo "      --fps [30|60|auto]        Límite de FPS en reproducción (por defecto 30)"
                 echo "  -sb,--sponsorblock            Omitir patrocinadores al descargar (SponsorBlock)"
+                echo "      --sb-profile [modo]       Perfil SponsorBlock: basic | standard | all"
+                echo "      --sb-mark                 Marcar capítulos SponsorBlock al reproducir en MPV"
                 echo "      --lang [código]           Configurar idioma / Set language"
                 echo "  -v, --version, --about        Mostrar versión y créditos / Show credits"
                 echo "  -h, --help                    Mostrar esta ayuda"
@@ -1486,8 +1530,33 @@ main() {
                 clear_download_archive
                 exit 0
                 ;;
+            --fps)
+                if [ $# -gt 1 ]; then
+                    MAX_FPS="${2,,}"
+                    FPS_CLI_OVERRIDE=1
+                    shift 2
+                else
+                    shift 1
+                fi
+                ;;
             -sb|--sponsorblock)
-                EXTRA_YTDL_ARGS+=("--sponsorblock-remove" "sponsor,selfpromo")
+                EXTRA_YTDL_ARGS+=("--sponsorblock-remove" "$SPONSORBLOCK_CATS")
+                shift 1
+                ;;
+            --sb-profile)
+                if [ $# -gt 1 ]; then
+                    case "${2,,}" in
+                        all)      SPONSORBLOCK_CATS="all" ;;
+                        standard) SPONSORBLOCK_CATS="sponsor,selfpromo,interaction,intro,outro" ;;
+                        basic|*)  SPONSORBLOCK_CATS="sponsor,selfpromo" ;;
+                    esac
+                    shift 2
+                else
+                    shift 1
+                fi
+                ;;
+            --sb-mark)
+                SPONSORBLOCK_MARK="true"
                 shift 1
                 ;;
             --min-views)

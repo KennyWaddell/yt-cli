@@ -76,7 +76,8 @@ If you are familiar with terminal tools like `ytfzf`, here is how `YT-CLI` compa
 * 📜 **Local History & Playback Resume:** Remembers watched videos (`yt-cli -H` or `:h`) with LRU ordering and resumes playback at the exact second you left off (`--save-position-on-quit`). 100% private and stored locally.
 * 🍪 **Browser Cookie Support:** Bypass age restrictions and bot check gates by passing session cookies from Brave, Chrome, Firefox, or Edge (`-c brave` / dropdown in GUI).
 * 🌐 **Multilingual System (10 Languages):** Native internationalization (`en`, `es`, `zh`, `hi`, `ar`, `pt`, `fr`, `de`, `ru`, `ja`) with automatic OS language detection, dynamic search language (`youtube:lang=...`), runtime switcher (`:lang` / GUI dropdown), and CLI flag (`--lang`).
-* ⏭️ **SponsorBlock Integration:** Automatically skip/remove sponsored segments on download (`-sb` / `--sponsorblock` on Linux or checkbox in Windows GUI).
+* ⏭️ **SponsorBlock Integration:** Automatically skip/remove sponsored segments on download (`-sb` / `--sponsorblock` + `--sb-profile basic|standard|all` on Linux, or profile selector in Windows GUI) and optionally mark segments as chapters in MPV (`--sb-mark`).
+* 🎞️ **Flexible FPS & Fallback:** Supports `30`, `60`, or `Auto` FPS (`--fps` on Linux CLI, dropdown in Windows GUI) with clean resolution fallback for non-YouTube sites.
 * 🪟 **Portable Windows GUI:** Standalone zero-install executable for Windows 7 SP1, 8.1, 10, and 11 with dark/light themes, progress bars, and dedicated audio mode.
 * 🔔 **Desktop Notifications:** Native non-blocking desktop notifications upon download completion.
 
@@ -311,8 +312,9 @@ Community translations are warmly welcomed! The localization system is modular a
 - [x] Modular multilingual internationalization: 10 languages + automatic discovery of community packs in `lang/` and `windows/locales_data.py` (v1.5).
 - [x] Integrated `yt-dlp` self-updater on Linux CLI (`-u` / `:u`).
 - [x] Optional SponsorBlock integration (`-sb` / `--sponsorblock` on Linux, checkbox in Windows GUI) (v1.5).
-- [ ] SponsorBlock profile presets & `--sponsorblock-mark` chapters in MPV (planned for v1.6).
-- [ ] Local channel autocomplete & quick channel jump from results (planned for v1.6).
+- [x] SponsorBlock profile presets & `--sponsorblock-mark` chapters in MPV (v1.6).
+- [x] Local channel autocomplete & quick channel jump from results (v1.6).
+- [x] GitHub Build Provenance Attestation (`actions/attest-build-provenance`) + CI parity tests (v1.6).
 
 ---
 

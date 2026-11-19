@@ -124,6 +124,19 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertIn("--cookies-from-browser", gui_src)
         self.assertIn("--hwdec=auto-safe", cli_src)
         self.assertIn("--hwdec=auto-safe", gui_src)
+        self.assertIn("--fps", cli_src)
+        self.assertIn("MAX_FPS", cli_src)
+        self.assertIn("best[height<=${target_h}]", cli_src)
+        self.assertIn("sponsorblock-mark=", cli_src)
+        self.assertIn("sponsorblock-mark=", gui_src)
+
+    def test_sponsorblock_profiles(self):
+        """Los perfiles de SponsorBlock mapean correctamente a categorías yt-dlp."""
+        gui_stub = yt_cli_gui.YtCliGUI.__new__(yt_cli_gui.YtCliGUI)
+        gui_stub.sponsorblock_profile = "basic"
+        self.assertEqual(gui_stub.get_sponsorblock_cats(), "sponsor,selfpromo")
+        self.assertEqual(gui_stub.get_sponsorblock_cats("standard"), "sponsor,selfpromo,interaction,intro,outro")
+        self.assertEqual(gui_stub.get_sponsorblock_cats("all"), "all")
 
 
 if __name__ == "__main__":

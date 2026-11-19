@@ -12,6 +12,8 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Clonar repositorio
@@ -119,6 +121,11 @@ jobs:
           path: |
             YT-CLI-Windows-Portable.zip
             SHA256.txt
+
+      - name: Generar atestacion criptografica de procedencia (GitHub Provenance)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: YT-CLI-Windows-Portable.zip
 
       - name: Publicar en Release de GitHub (si es una version tag)
         if: startsWith(github.ref, 'refs/tags/v')

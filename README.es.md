@@ -76,7 +76,8 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
 * 📜 **Historial local y reanudación automática:** Recuerda tus últimos videos vistos (`yt-cli -H` o `:h`) con reordenamiento inteligente y retoma la reproducción exactamente en el segundo donde lo dejaste (`--save-position-on-quit`). Totalmente privado, local y configurable.
 * 🍪 **Soporte de cookies de navegador:** Supera restricciones de edad o avisos de bot pasando cookies de Brave, Chrome, Firefox o Edge (`-c brave` / desplegable en GUI).
 * 🌐 **Sistema Multilingüe (10 Idiomas):** Internacionalización nativa (`en`, `es`, `zh`, `hi`, `ar`, `pt`, `fr`, `de`, `ru`, `ja`) con autodetección del idioma del sistema, resultados dinámicos (`youtube:lang=...`), selector en tiempo real (`:lang` / menú en GUI) y flag `--lang`.
-* ⏭️ **SponsorBlock integrado:** Salta o elimina automáticamente menciones patrocinadas al descargar (`-sb` / `--sponsorblock` en Linux o casilla en la GUI de Windows).
+* ⏭️ **SponsorBlock integrado:** Salta o elimina segmentos patrocinados al descargar (`-sb` / `--sponsorblock` + `--sb-profile basic|standard|all` en Linux, o selector de perfil en Windows) y opción de marcarlos como capítulos en MPV (`--sb-mark`).
+* 🎞️ **FPS y Fallback flexible:** Selector `30`, `60` o `Auto` FPS (`--fps` en Linux CLI, desplegable en GUI Windows) con fallback limpio de resolución para otras plataformas web.
 * 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz moderna y ligera sin instalaciones complejas, con tema oscuro/claro, descargas interactivas, barra de progreso y reproductor de audio dedicado.
 * 🌐 **Soporte Multiplataforma:** No solo funciona con YouTube; puedes pegar enlaces directos de **TikTok, Twitter/X, Instagram Reels, Twitch, Reddit, SoundCloud y más de 1.000 sitios soportados**.
 * 🔔 **Notificaciones de escritorio:** Alerta nativa no bloqueante al finalizar descargas en segundo plano.
@@ -303,8 +304,9 @@ sudo yt-dlp -U
 - [x] Internacionalización (i18n): Sistema multilingüe modular con 10 idiomas + autodetección de paquetes comunitarios en `lang/` y `windows/locales_data.py` (v1.5).
 - [x] Actualizador integrado de `yt-dlp` en Linux CLI (`-u` / `:u`).
 - [x] Soporte opcional para SponsorBlock (`-sb` / `--sponsorblock` en Linux, casilla en GUI de Windows) (v1.5).
-- [ ] Perfiles de categorías SponsorBlock y capítulos `--sponsorblock-mark` en MPV (previsto para v1.6).
-- [ ] Autocompletado local de canales y acceso rápido al canal desde resultados (previsto para v1.6).
+- [x] Perfiles de categorías SponsorBlock y capítulos `--sponsorblock-mark` en MPV (v1.6).
+- [x] Autocompletado local de canales y acceso rápido al canal desde resultados (v1.6).
+- [x] Atestación criptográfica de procedencia en GitHub Actions + tests de paridad en CI (v1.6).
 
 ---
 
