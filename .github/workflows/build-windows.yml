@@ -38,8 +38,8 @@ jobs:
           Write-Host "-> Descargando yt-dlp.exe oficial..."
           curl.exe -fSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -o "windows\bin\yt-dlp.exe"
 
-          Write-Host "-> Descargando ffmpeg.exe y ffprobe.exe oficiales (gyan.dev essentials)..."
-          curl.exe -fSL "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -o "ffmpeg.zip"
+          Write-Host "-> Descargando ffmpeg.exe y ffprobe.exe oficiales (GyanD/codexffmpeg GitHub)..."
+          curl.exe -fSL --retry 3 --retry-delay 3 "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip" -o "ffmpeg.zip"
           7z e ffmpeg.zip -owindows\bin ffmpeg.exe ffprobe.exe -r -y
           Remove-Item ffmpeg.zip -Force
 
