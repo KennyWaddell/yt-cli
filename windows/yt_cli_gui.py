@@ -1510,11 +1510,45 @@ class YtCliGUI:
         )
         thread.start()
 
+    def _ask_yesno_from_worker(self, title, message):
+        """Solicita confirmación al usuario en el hilo principal de Tkinter."""
+        evt = threading.Event()
+        result_box = [False]
+        self.msg_queue.put(("ask_yesno", (title, message, evt, result_box)))
+        evt.wait()
+        return result_box[0]
+
+    def _has_recent_download_file(self, since_ts):
+        """Comprueba si existe al menos un archivo creado o actualizado en download_dir."""
+        try:
+            for root_dir, _, files in os.walk(self.download_dir):
+                for fname in files:
+                    if fname.endswith((".part", ".ytdl", ".tmp")):
+                        continue
+                    fpath = os.path.join(root_dir, fname)
+                    try:
+                        st = os.stat(fpath)
+                        if st.st_size > 0 and st.st_mtime >= since_ts - 2.0:
+                            return True
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+        return False
+
+    def _write_download_log(self, lines):
+        log_path = os.path.join(get_config_dir(), "last_download.log")
+        try:
+            with open(log_path, "w", encoding="utf-8", errors="replace") as f:
+                f.writelines(lines)
+        except Exception:
+            pass
+        return log_path
+
     def _download_worker(self, urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section):
         ytdlp_cmd = get_binary_path("yt-dlp")
         ffmpeg_cmd = get_binary_path("ffmpeg")
         bin_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-        archive_file = os.path.join(get_config_dir(), "download_archive.txt")
         is_en = self.current_lang == "en"
         has_error = False
         last_error_msg = ""
@@ -1531,35 +1565,37 @@ class YtCliGUI:
             status_text = f"Downloading [{idx}/{len(urls)}]: connecting..." if is_en else f"Descargando [{idx}/{len(urls)}]: conectando..."
             self.msg_queue.put(("status", status_text))
 
-            cmd = [
+            base_cmd = [
                 ytdlp_cmd,
                 "--encoding", "utf-8",
                 "-c",
                 "--no-mtime",
-                "--download-archive", archive_file,
+                "--no-download-archive",
+                "--no-simulate",
+                "--print", "after_move:__YTCLI_FILE__:%(filepath)s",
                 "--extractor-args", f"youtube:lang={self.current_lang}",
                 "-P", self.download_dir
             ]
 
             if split_chapters:
-                cmd += [
+                base_cmd += [
                     "--split-chapters",
                     "-o", "%(title)s/%(section_number)02d - %(section_title)s.%(ext)s"
                 ]
             elif trim_section:
                 clean_s = trim_section.split("-")[0].replace(":", "")
                 clean_e = trim_section.split("-")[1].replace(":", "") if "-" in trim_section else "end"
-                cmd += [
+                base_cmd += [
                     "--download-sections", f"*{trim_section}",
                     "--force-keyframes-at-cuts",
                     "-o", f"%(title)s [{clean_s}_{clean_e}].%(ext)s"
                 ]
             else:
-                cmd += ["-o", "%(title)s.%(ext)s"]
+                base_cmd += ["-o", "%(title)s.%(ext)s"]
 
             cookie_choice = self.var_cookies.get()
             if cookie_choice not in ("Ninguna", "None") and is_browser_installed(cookie_choice):
-                cmd += ["--cookies-from-browser", cookie_choice.lower()]
+                base_cmd += ["--cookies-from-browser", cookie_choice.lower()]
 
             if mode == "video":
                 fps_filter = ""
@@ -1573,94 +1609,150 @@ class YtCliGUI:
                     f"bestvideo[height<={quality}]{fps_filter}+bestaudio/"
                     f"best[height<={quality}]{fps_filter}/best"
                 )
-                cmd += [
+                base_cmd += [
                     "-f", fmt,
                     "--merge-output-format", "mp4",
                     "--ffmpeg-location", ffmpeg_cmd
                 ]
                 if embed_thumb:
-                    cmd += ["--embed-thumbnail"]
+                    base_cmd += ["--embed-thumbnail"]
             else:
                 if audio_format == "m4a":
-                    cmd += [
+                    base_cmd += [
                         "-f", "ba[ext=m4a]/ba/b",
                         "-x",
                         "--audio-format", "m4a",
                         "--ffmpeg-location", ffmpeg_cmd
                     ]
                 elif audio_format == "opus":
-                    cmd += [
+                    base_cmd += [
                         "-f", "ba[ext=opus]/ba[ext=webm]/ba/b",
                         "-x",
                         "--audio-format", "opus",
                         "--ffmpeg-location", ffmpeg_cmd
                     ]
                 elif audio_format == "flac":
-                    cmd += [
+                    base_cmd += [
                         "-x",
                         "--audio-format", "flac",
                         "--ffmpeg-location", ffmpeg_cmd
                     ]
                 else:  # mp3
-                    cmd += [
+                    base_cmd += [
                         "-x",
                         "--audio-format", "mp3",
                         "--audio-quality", bitrate,
                         "--ffmpeg-location", ffmpeg_cmd
                     ]
                 if embed_thumb:
-                    cmd += ["--embed-thumbnail"]
+                    base_cmd += ["--embed-thumbnail"]
 
-            cmd.append(url)
+            force_overwrite = False
+            while True:
+                cmd = list(base_cmd)
+                if force_overwrite:
+                    cmd.append("--force-overwrites")
+                cmd.append(url)
 
-            try:
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    env=env,
-                    **SUBPROCESS_FLAGS
-                )
-                self.active_process = proc
+                dl_start_time = time.time()
+                try:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        env=env,
+                        **SUBPROCESS_FLAGS
+                    )
+                    self.active_process = proc
 
-                merge_failed = False
-                all_output_lines = []
-                for line in proc.stdout:
-                    all_output_lines.append(line)
-                    line_clean = line.strip()
-                    if "[download]" in line and "%" in line:
-                        pct_text = line_clean.replace("[download]", "").strip()
-                        self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {pct_text}"))
-                    elif "ffmpeg is not installed" in line or "won't be merged" in line:
-                        merge_failed = True
-                    elif "ERROR:" in line:
-                        last_error_msg = line_clean
+                    merge_failed = False
+                    already_exists = False
+                    reported_files = []
+                    all_output_lines = []
 
-                proc.wait()
-                if self.is_cancelled:
+                    for line in proc.stdout:
+                        all_output_lines.append(line)
+                        line_clean = line.strip()
+                        if line_clean.startswith("__YTCLI_FILE__:"):
+                            fpath = line_clean.split("__YTCLI_FILE__:", 1)[1].strip()
+                            if fpath:
+                                reported_files.append(fpath)
+                        elif "[download]" in line and "%" in line:
+                            pct_text = line_clean.replace("[download]", "").strip()
+                            self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {pct_text}"))
+                        elif "has already been downloaded" in line:
+                            already_exists = True
+                        elif "ffmpeg is not installed" in line or "won't be merged" in line:
+                            merge_failed = True
+                        elif "ERROR:" in line:
+                            last_error_msg = line_clean
+
+                    proc.wait()
+                    if self.is_cancelled:
+                        break
+
+                    if proc.returncode != 0:
+                        has_error = True
+                        log_path = self._write_download_log(all_output_lines)
+                        if not last_error_msg:
+                            last_error_msg = f"Item {idx} failed (exit code {proc.returncode}). Log: {log_path}" if is_en else f"Error en elemento {idx}. Código: {proc.returncode}. Log: {log_path}"
+                        self.msg_queue.put(("error", last_error_msg))
+                        break
+
+                    if merge_failed:
+                        has_error = True
+                        log_path = self._write_download_log(all_output_lines)
+                        last_error_msg = (
+                            f"FFmpeg was not detected or failed to merge audio and video.\nLog: {log_path}"
+                            if is_en else
+                            f"FFmpeg no fue detectado o falló al unir el audio y vídeo.\nLog: {log_path}"
+                        )
+                        self.msg_queue.put(("error", last_error_msg))
+                        break
+
+                    verified_files = [
+                        p for p in reported_files
+                        if os.path.isfile(p) and os.path.getsize(p) > 0
+                    ]
+                    if not verified_files and not self._has_recent_download_file(dl_start_time):
+                        if already_exists and not force_overwrite:
+                            title_ask = "File Already Exists" if is_en else "Archivo Existente"
+                            msg_ask = (
+                                "This file already exists in the destination folder.\nDo you want to download it again?"
+                                if is_en else
+                                "Este archivo ya existe en la carpeta de destino.\n¿Quieres descargarlo de nuevo?"
+                            )
+                            if self._ask_yesno_from_worker(title_ask, msg_ask):
+                                force_overwrite = True
+                                continue
+                            break
+
+                        has_error = True
+                        log_path = self._write_download_log(all_output_lines)
+                        tail = "".join(all_output_lines[-6:]).strip()
+                        last_error_msg = (
+                            f"Download finished but no file was found in:\n{self.download_dir}\n\nDetails:\n{tail}\n\nLog: {log_path}"
+                            if is_en else
+                            f"El proceso terminó pero no se generó ningún archivo en:\n{self.download_dir}\n\nDetalle:\n{tail}\n\nLog: {log_path}"
+                        )
+                        self.msg_queue.put(("error", last_error_msg))
+                        break
+
                     break
-                if proc.returncode != 0:
-                    has_error = True
-                    if not last_error_msg:
-                        last_error_msg = f"Item {idx} failed (exit code {proc.returncode})" if is_en else f"Error en elemento {idx}. Código: {proc.returncode}"
-                    self.msg_queue.put(("error", last_error_msg))
+                except Exception as e:
+                    if not self.is_cancelled:
+                        has_error = True
+                        last_error_msg = f"Download error: {str(e)}" if is_en else f"Error en descarga: {str(e)}"
+                        self.msg_queue.put(("error", last_error_msg))
                     break
-                elif merge_failed:
-                    has_error = True
-                    last_error_msg = "FFmpeg was not detected or failed to merge audio and video." if is_en else "FFmpeg no fue detectado o falló al unir el audio y vídeo."
-                    self.msg_queue.put(("error", last_error_msg))
-                    break
-            except Exception as e:
-                if not self.is_cancelled:
-                    has_error = True
-                    last_error_msg = f"Download error: {str(e)}" if is_en else f"Error en descarga: {str(e)}"
-                    self.msg_queue.put(("error", last_error_msg))
+                finally:
+                    self.active_process = None
+
+            if has_error or self.is_cancelled:
                 break
-            finally:
-                self.active_process = None
 
         if self.is_cancelled:
             self.msg_queue.put(("download_cancelled", None))
@@ -1861,6 +1953,12 @@ class YtCliGUI:
                     self.status_var.set(f"Listo. {len(data)} resultados cargados.")
                 elif msg == "status":
                     self.status_var.set(data)
+                elif msg == "ask_yesno":
+                    title_ask, msg_ask, evt, result_box = data
+                    try:
+                        result_box[0] = messagebox.askyesno(title_ask, msg_ask)
+                    finally:
+                        evt.set()
                 elif msg == "error":
                     self.status_var.set(data)
                     messagebox.showerror("Aviso", data)

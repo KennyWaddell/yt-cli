@@ -184,6 +184,10 @@ yt-cli -d "https://www.tiktok.com/@usuario/video/..."
 
 ## 🪟 Uso en Windows (Versión Portable Standalone)
 
+<p align="center">
+  <img src="assets/YT-CLI-Windows.gif" alt="Interfaz Gráfica de YT-CLI en Windows" width="750">
+</p>
+
 YT-CLI incluye una versión oficial con interfaz gráfica moderna y ligera para **Windows 7 SP1, 8.1, 10 y 11 (64-bit)**. No requiere instalar Python, ni configurar dependencias, ni tocar el `PATH` del sistema.
 
 ### Pasos rápidos:

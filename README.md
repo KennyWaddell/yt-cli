@@ -193,6 +193,10 @@ yt-cli --lang es
 
 ## 🪟 Windows Portable Standalone Usage
 
+<p align="center">
+  <img src="assets/YT-CLI-Windows.gif" alt="YT-CLI Windows GUI" width="750">
+</p>
+
 YT-CLI provides an official, native standalone package for **Windows 7 SP1, 8.1, 10, and 11 (64-bit)**. It does not require installing Python, configuring dependencies, or modifying system `PATH`.
 
 ### Quick Steps:
