@@ -21,7 +21,9 @@
 
 ## ⚡ El Problema que Resuelve
 
-En navegadores web modernos (Brave, Chrome, Firefox), abrir YouTube consume entre **900 MB y 1.4 GB de RAM**, además de disparar la CPU al **100%** debido a cientos de scripts JavaScript, telemetría y renderizado pesado del DOM. En procesadores modestos de 2 núcleos, esto provoca congelamientos, ventiladores al máximo y videos con tirones.
+Creé YT-CLI por necesidad propia: mi equipo de bajos recursos en Linux se congelaba al intentar ver vídeos de YouTube dentro de Brave.
+
+En navegadores web modernos (Brave, Chrome, Firefox), abrir YouTube consume entre **900 MB y 1.4 GB de RAM**, además de disparar la CPU al **100%** debido a cientos de scripts JavaScript, telemetría y renderizado pesado del DOM. En procesadores modestos de 2 núcleos, esto provoca congelamientos, altas temperaturas y videos con tirones.
 
 **YT-CLI** elimina por completo el navegador de la ecuación:
 * Realiza búsquedas instantáneas en texto plano con **FZF**.
@@ -55,7 +57,7 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
 
 * 🔍 **Buscador interactivo ultrarrápido:** Filtra en tiempo real por título, duración y canal mediante el teclado con `fzf`.
 * 🎶 **Cola de reproducción y selección múltiple:** Marca varios videos o canciones con la tecla `Tab` en `fzf` para reproducirlos en cola continua en MPV (`>` siguiente / `<` anterior) o descargarlos en lote.
-* 📋 **Detección mágica del portapapeles:** Al arrancar, si tienes copiado un enlace de YouTube, TikTok, X (Twitter), etc., `yt-cli` lo detecta automáticamente y te ofrece abrirlo o descargarlo al instante.
+* 📋 **Detección automática del portapapeles:** Al arrancar, si tienes copiado un enlace de YouTube, TikTok, X (Twitter), etc., `yt-cli` lo detecta automáticamente y te ofrece abrirlo o descargarlo al instante.
 * 🔄 **Lista de resultados persistente y navegación segura:** Cuando un video termina (o pulsas `q` para cerrarlo), la lista de búsqueda anterior **reaparece al instante**. Además, si seleccionas un video por error en FZF, el menú de acciones incluye la opción `[0]` para cancelar y regresar inmediatamente a tus resultados sin recargar nada.
 * 📺 **Selector de resoluciones inteligente:**
   * **720p HD a 30fps:** El equilibrio perfecto para pantallas de portátiles y bajo consumo de CPU.
@@ -78,7 +80,7 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
 * 🌐 **Sistema Multilingüe (10 Idiomas):** Internacionalización nativa (`en`, `es`, `zh`, `hi`, `ar`, `pt`, `fr`, `de`, `ru`, `ja`) con autodetección del idioma del sistema, resultados dinámicos (`youtube:lang=...`), selector en tiempo real (`:lang` / menú en GUI) y flag `--lang`.
 * ⏭️ **SponsorBlock integrado:** Salta o elimina segmentos patrocinados al descargar (`-sb` / `--sponsorblock` + `--sb-profile basic|standard|all` en Linux, o selector de perfil en Windows) y opción de marcarlos como capítulos en MPV (`--sb-mark`).
 * 🎞️ **FPS y Fallback flexible:** Selector `30`, `60` o `Auto` FPS (`--fps` en Linux CLI, desplegable en GUI Windows) con fallback limpio de resolución para otras plataformas web.
-* 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz moderna y ligera sin instalaciones complejas, con tema oscuro/claro, descargas interactivas, barra de progreso y reproductor de audio dedicado.
+* 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz gráfica portable sin instalaciones complejas, con tema oscuro/claro, descargas interactivas, barra de progreso y reproductor de audio dedicado.
 * 🌐 **Soporte Multiplataforma:** No solo funciona con YouTube; puedes pegar enlaces directos de **TikTok, Twitter/X, Instagram Reels, Twitch, Reddit, SoundCloud y más de 1.000 sitios soportados**.
 * 🔔 **Notificaciones de escritorio:** Alerta nativa no bloqueante al finalizar descargas en segundo plano.
 * 🛡️ **Privacidad y Control:** Sin telemetría ni rastreadores. Historial local opcional y posibilidad de eliminarlo con un solo comando o clic.
@@ -193,7 +195,7 @@ yt-cli -d "https://www.tiktok.com/@usuario/video/..."
   <img src="assets/YT-CLI-Windows.gif" alt="Interfaz Gráfica de YT-CLI en Windows" width="750">
 </p>
 
-YT-CLI incluye una versión oficial con interfaz gráfica moderna y ligera para **Windows 7 SP1, 8.1, 10 y 11 (64-bit)**. No requiere instalar Python, ni configurar dependencias, ni tocar el `PATH` del sistema.
+YT-CLI incluye una versión oficial con interfaz gráfica portable para **Windows 7 SP1, 8.1, 10 y 11 (64-bit)**. No requiere instalar Python, ni configurar dependencias, ni tocar el `PATH` del sistema.
 
 ### Pasos rápidos:
 1. Ve a la sección de [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) y descarga **`YT-CLI-Windows-Portable.zip`** (compilado de forma transparente en GitHub Actions con suma `SHA256.txt` y pruebas automáticas en VM de Windows).
@@ -292,7 +294,7 @@ sudo yt-dlp -U
 - [x] Soporte para reanudación de descargas interrumpidas (`-c` / `--continue`).
 - [x] Selector interactivo de carpetas de destino (disco local, pendrives USB y rutas personalizadas).
 - [x] Cola de reproducción múltiple en FZF (marcar con tecla `Tab`).
-- [x] Detección mágica del portapapeles y notificaciones de escritorio.
+- [x] Detección automática del portapapeles y notificaciones de escritorio.
 - [x] Historial local con reanudación automática de posición (`--save-position-on-quit` y `--watch-later-options=start`).
 - [x] Soporte para cookies de sesión de navegadores (Brave, Firefox, Chrome, Edge).
 - [x] Versión multiplataforma con GUI nativa minimalista para **Windows 7 / 8.1 / 10 / 11**.
@@ -307,6 +309,14 @@ sudo yt-dlp -U
 - [x] Perfiles de categorías SponsorBlock y capítulos `--sponsorblock-mark` en MPV (v1.6).
 - [x] Autocompletado local de canales y acceso rápido al canal desde resultados (v1.6).
 - [x] Atestación criptográfica de procedencia en GitHub Actions + tests de paridad en CI (v1.6).
+
+---
+
+## 🤝 Colaboración y Feedback
+
+YT-CLI está en evolución constante. Cualquier feedback para corregir errores, mejorar el rendimiento, proponer funciones o aportar nuevas traducciones es bienvenido:
+* Abre un [**Issue**](https://github.com/KennyWaddell/yt-cli/issues) para reportar fallos o sugerir mejoras.
+* Envía un **Pull Request** siguiendo la guía de [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

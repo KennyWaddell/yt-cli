@@ -21,7 +21,9 @@
 
 ## ⚡ The Problem It Solves
 
-Modern web browsers (Brave, Chrome, Firefox) typically consume between **900 MB and 1.4 GB of RAM** just to open YouTube, driving dual-core CPUs to **100% utilization** due to bloated JavaScript bundles, telemetry, and heavyweight DOM rendering. On older machines, this results in system freezing, screaming cooling fans, and dropped frames.
+I built YT-CLI out of personal necessity: on my own low-spec Linux PC, opening YouTube inside Brave caused severe CPU spikes and system freezes.
+
+Modern web browsers (Brave, Chrome, Firefox) typically consume between **900 MB and 1.4 GB of RAM** just to open YouTube, driving dual-core CPUs to **100% utilization** due to heavy JavaScript bundles, telemetry, and DOM rendering. On older machines, this results in stuttering, high temperatures, and dropped frames.
 
 **YT-CLI** cuts the web browser entirely out of the equation:
 * Instant plain-text search driven by **FZF**.
@@ -53,14 +55,14 @@ If you are familiar with terminal tools like `ytfzf`, here is how `YT-CLI` compa
 
 ## ✨ Key Features
 
-* 🔍 **Ultra-Fast Interactive Search:** Filter videos in real time by title, duration, and uploader using `fzf`.
+* 🔍 **Interactive Search:** Filter videos in real time by title, duration, and uploader using `fzf`.
 * 🎶 **Queue & Multi-Selection:** Mark multiple videos or songs with `Tab` in `fzf` to stream sequentially in MPV (`>` next / `<` prev) or download them in batch.
 * 📋 **Smart Clipboard Detection:** If you copy a YouTube, TikTok, or Twitter/X link before launching `yt-cli`, it detects it and offers to open or download it immediately.
 * 🔄 **Persistent Results & Safe Navigation:** When a video finishes (or you press `q`), the search list **reappears instantly**. If you select a video by mistake, option `[0]` lets you return to your results with zero delay.
 * 📺 **Smart Resolution Selector:**
   * **720p HD at 30fps:** Optimal balance for laptop displays and low CPU usage (Default).
   * **1080p Full HD:** GPU-accelerated H.264 (with automatic fallback to 720p if H.264 is unavailable).
-  * **480p / 360p:** For slow connections or extreme power saving.
+  * **480p / 360p:** For slow connections or lower CPU/power usage.
   * **Audio Only:** Ideal for podcasts, tutorials, or background music (~25 MB RAM).
 * ⬇️ **Smart & Resumable Downloads:**
   * **Time Section Trimming (`--section` / `[9]`):** Download only the exact segment you need from long videos, concerts, or tutorials (e.g. `--section 00:10:00-00:25:00`).
@@ -315,6 +317,14 @@ Community translations are warmly welcomed! The localization system is modular a
 - [x] SponsorBlock profile presets & `--sponsorblock-mark` chapters in MPV (v1.6).
 - [x] Local channel autocomplete & quick channel jump from results (v1.6).
 - [x] GitHub Build Provenance Attestation (`actions/attest-build-provenance`) + CI parity tests (v1.6).
+
+---
+
+## 🤝 Contributing & Feedback
+
+YT-CLI is under active development and continuously evolving. Feedback, bug reports, feature suggestions, code improvements, and new language packs are always welcome:
+* Open an [**Issue**](https://github.com/KennyWaddell/yt-cli/issues) to report bugs or suggest improvements.
+* Submit a **Pull Request** following [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

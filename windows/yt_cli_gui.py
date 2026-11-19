@@ -15,6 +15,7 @@ import time
 import glob
 import re
 import webbrowser
+from urllib.parse import urlparse
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
@@ -938,10 +939,19 @@ class YtCliGUI:
             return choice
         return None
 
+    def _is_supported_clipboard_url(self, text):
+        if not text or not (text.startswith("http://") or text.startswith("https://")):
+            return False
+        try:
+            host = (urlparse(text).hostname or "").lower()
+            return host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
+        except Exception:
+            return False
+
     def check_clipboard_on_start(self):
         try:
             clip = self.root.clipboard_get().strip()
-            if clip.startswith("http://") or clip.startswith("https://") or "youtube.com" in clip or "youtu.be" in clip:
+            if self._is_supported_clipboard_url(clip):
                 self._set_query_text(clip)
                 item_id = self.tree.insert("", tk.END, values=("Enlace multimedia detectado", "Enlace Web", "--:--", clip), tags=("evenrow",))
                 self.tree.selection_set(item_id)
@@ -1459,7 +1469,7 @@ class YtCliGUI:
             title_text = "YT-CLI - Video Player" if is_en else "YT-CLI - Reproductor de Vídeo"
             cmd += [
                 f"--title={title_text}",
-                "--vo=gpu",
+                "--vo=gpu,direct3d,sdl",
                 "--hwdec=auto-safe",
                 f"--ytdl-format={fmt}"
             ]
@@ -1467,28 +1477,28 @@ class YtCliGUI:
         cmd += urls
 
         try:
-            self.mpv_process = subprocess.Popen(cmd, env=env)
+            proc = subprocess.Popen(cmd, env=env)
+            self.mpv_process = proc
 
-            # Monitoreo de arranque activo: detectar cierre o fallo prematuro de mpv
-            def check_mpv_startup(elapsed=0):
-                if not self.mpv_process:
+            # Monitoreo continuo del proceso mpv mientras esté activo
+            def monitor_mpv(elapsed=0, shown_playing=False):
+                if self.mpv_process is not proc:
                     return
-                poll_code = self.mpv_process.poll()
+                poll_code = proc.poll()
                 if poll_code is not None:
-                    # mpv terminó prematuramente (cierre o fallo)
+                    self.mpv_process = None
                     self.prog_bar.stop()
                     self.btn_cancel.config(state=tk.DISABLED)
                     if poll_code != 0:
                         err_text = f"Player closed unexpectedly (exit code {poll_code})." if is_en else f"El reproductor se cerró inesperadamente (código {poll_code})."
                         self.status_var.set(err_text)
                     else:
-                        ready_text = "Ready." if is_en else "Listo."
-                        self.status_var.set(ready_text)
+                        self.status_var.set("Ready." if is_en else "Listo.")
                     return
 
-                if elapsed >= 8:
-                    # Tras 8 segundos sigue en ejecución
+                if not shown_playing and elapsed >= 8:
                     self.prog_bar.stop()
+                    shown_playing = True
                     if audio_only:
                         self.status_var.set(
                             "♫ Playing. Controls: Space (Pause), Arrows (Seek), 9/0 (Volume), L (Loop)" if is_en
@@ -1499,10 +1509,10 @@ class YtCliGUI:
                             "▶ Playing. Controls: Space (Pause), Arrows (Seek), F (Fullscreen)" if is_en
                             else "▶ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), F (Pantalla completa)"
                         )
-                else:
-                    self.root.after(1000, lambda: check_mpv_startup(elapsed + 1))
 
-            self.root.after(1000, lambda: check_mpv_startup(1))
+                self.root.after(1500, lambda: monitor_mpv(elapsed + 1.5, shown_playing))
+
+            self.root.after(1000, lambda: monitor_mpv(1, False))
         except FileNotFoundError:
             self.prog_bar.stop()
             self.btn_cancel.config(state=tk.DISABLED)
@@ -2140,21 +2150,24 @@ class YtCliGUI:
 
     def cancel_process(self):
         self.is_cancelled = True
-        if self.mpv_process and self.mpv_process.poll() is None:
-            try:
-                self.mpv_process.terminate()
-            except Exception:
-                pass
+        is_en = self.current_lang != "es"
+        if self.mpv_process:
+            if self.mpv_process.poll() is None:
+                try:
+                    self.mpv_process.terminate()
+                except Exception:
+                    pass
             self.mpv_process = None
-            self.status_var.set("Reproducción detenida.")
+            self.status_var.set("Playback stopped." if is_en else "Reproducción detenida.")
 
-        if self.active_process and self.active_process.poll() is None:
-            try:
-                self.active_process.terminate()
-            except Exception:
-                pass
+        if self.active_process:
+            if self.active_process.poll() is None:
+                try:
+                    self.active_process.terminate()
+                except Exception:
+                    pass
             self.active_process = None
-            self.status_var.set("Descarga cancelada.")
+            self.status_var.set("Download cancelled." if is_en else "Descarga cancelada.")
 
         self.btn_cancel.config(state=tk.DISABLED)
         self.btn_dl_video.config(state=tk.NORMAL)
