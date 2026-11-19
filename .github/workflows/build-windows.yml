@@ -48,8 +48,8 @@ jobs:
           7z e vulkan.zip -owindows\bin VulkanRT-1.3.296.0-Components\x64\vulkan-1.dll -r -y
           Remove-Item vulkan.zip -Force
 
-          Write-Host "-> Descargando mpv.exe oficial (shinchiro winbuild)..."
-          curl.exe -fSL "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261111/mpv-x86_64-20261111-git-bcde6b93cc.7z" -o "mpv.7z"
+          Write-Host "-> Descargando mpv.exe universal Win7/8.1/10/11 (v0.37.0 20231126)..."
+          curl.exe -fSL --retry 3 --retry-delay 3 "https://downloads.sourceforge.net/project/mpv-player-windows/64bit/mpv-x86_64-20231126-git-6898d57.7z?viasf=1" -o "mpv.7z"
           7z e mpv.7z -owindows\bin mpv.exe mpv.com *.dll -r -y
           Remove-Item mpv.7z -Force
 
@@ -96,6 +96,35 @@ jobs:
           $mp3codec = & windows\bin\ffprobe.exe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 test_audio.mp3
           if ($mp3codec.Trim() -ne "mp3") { throw "El archivo MP3 generado no es valido: $mp3codec" }
           Remove-Item test_v.mp4, test_a.m4a, test_merged.mp4, test_audio.mp3 -Force
+
+          Write-Host "=== TEST 8: Verificando ausencia de APIs Win10-only en IAT de mpv.exe ==="
+          python -c "
+          import struct
+          with open(r'windows\bin\mpv.exe', 'rb') as f: data = f.read()
+          pe = struct.unpack_from('<I', data, 0x3c)[0]
+          irva, _ = struct.unpack_from('<II', data, pe + 24 + 120)
+          nsec = struct.unpack_from('<H', data, pe + 6)[0]
+          secs = [struct.unpack_from('<IIII', data, pe + 264 + i*40 + 8) for i in range(nsec)]
+          r2o = lambda r: next((rp + (r - va) for vs, va, rs, rp in secs if va <= r < va + max(vs, rs)), None)
+          idx = r2o(irva)
+          bad = []
+          while True:
+              oft, _, _, nrva, ft = struct.unpack_from('<IIIII', data, idx)
+              if nrva == 0: break
+              toff = r2o(oft or ft)
+              while True:
+                  v = struct.unpack_from('<Q', data, toff)[0]
+                  if v == 0: break
+                  if not (v & (1 << 63)):
+                      ioff = r2o(v & 0x7fffffff) + 2
+                      fn = data[ioff:data.find(b'\x00', ioff)].decode('latin1', 'ignore')
+                      if fn in ('AdjustWindowRectExForDpi', 'GetSystemMetricsForDpi'):
+                          bad.append(fn)
+                  toff += 8
+              idx += 20
+          assert not bad, f'APIs exclusivas Win10 en IAT de mpv.exe: {bad}'
+          print('IAT de mpv.exe compatible con Win7/8.1/10/11')
+          "
 
           Write-Host "=== [EXITO] TODOS LOS TESTS ENTORNO WINDOWS PASARON AL 100% ==="
 

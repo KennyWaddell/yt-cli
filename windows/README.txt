@@ -111,15 +111,15 @@ CARACTERISTICAS (v1.5)
 PREGUNTAS FRECUENTES (FAQ)
 --------------------------
 P: ¿Por qué Windows SmartScreen o mi antivirus muestra una alerta al abrirlo?
-R: Es un falso positivo muy comun en ejecutables empaquetados con PyInstaller
+R: Es un falso positivo muy común en ejecutables empaquetados con PyInstaller
    que no cuentan con un certificado de firma digital de pago (cuestan cientos
-   de dolares al ano). El proyecto es 100% de codigo abierto bajo licencia GPLv3
-   y puedes auditar cada linea de codigo en GitHub. Haz clic en "Mas informacion"
+   de dólares al año). El proyecto es 100% de código abierto bajo licencia GPLv3
+   y puedes auditar cada línea de código en GitHub. Haz clic en "Más información"
    y luego "Ejecutar de todas formas".
 
-P: ¿Que hago si YouTube cambia su sistema y los videos dejan de cargar?
+P: ¿Qué hago si YouTube cambia su sistema y los vídeos dejan de cargar?
 R: Solo debes actualizar el motor yt-dlp.exe:
-   1. Descarga el ejecutable mas reciente desde:
+   1. Descarga el ejecutable más reciente desde:
       https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
    2. Reemplaza el archivo "yt-dlp.exe" dentro de la subcarpeta "bin/".
-   Listo! No necesitas volver a compilar nada.
+   ¡Listo! No necesitas volver a compilar nada.
