@@ -180,6 +180,27 @@ SUBPROCESS_FLAGS = {}
 if IS_WINDOWS:
     SUBPROCESS_FLAGS["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
 
+
+def terminate_process_tree(proc):
+    """Termina un subproceso y su árbol de procesos hijos (yt-dlp/ffmpeg) sin bloquear la GUI."""
+    if not proc or proc.poll() is not None:
+        return
+    if IS_WINDOWS:
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                **SUBPROCESS_FLAGS
+            )
+        except Exception:
+            pass
+    if proc.poll() is None:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+
 # Paletas de diseño moderno (Flat & Sleek)
 THEMES = {
     "dark": {
@@ -1389,7 +1410,7 @@ class YtCliGUI:
         btn_ok = tk.Button(btn_box, text="Save and Close" if is_en else "Guardar y Cerrar", command=save_and_close, font=("sans-serif", 8, "bold"), bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], relief="flat", padx=10, pady=3, cursor="hand2")
         btn_ok.pack(side=tk.RIGHT)
 
-    def play_selected(self, audio_only=False):
+    def play_selected(self, audio_only=False, safe_software=False):
         urls = self.get_selected_urls()
         is_en = self.current_lang == "en"
         if not urls:
@@ -1408,24 +1429,26 @@ class YtCliGUI:
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
 
-        # Registrar en historial
-        selected_ids = self.tree.selection()
-        for item_id in selected_ids:
-            vals = self.tree.item(item_id, "values")
-            if vals and len(vals) >= 4:
-                record_history_item(vals[0], vals[1], vals[2], vals[3])
+        # Registrar en historial solo en el lanzamiento inicial (evitar duplicar en reintento seguro)
+        if not safe_software:
+            selected_ids = self.tree.selection()
+            for item_id in selected_ids:
+                vals = self.tree.item(item_id, "values")
+                if vals and len(vals) >= 4:
+                    record_history_item(vals[0], vals[1], vals[2], vals[3])
 
         # Detener cualquier reproducción previa de mpv antes de iniciar una nueva
-        if self.mpv_process and self.mpv_process.poll() is None:
-            try:
-                self.mpv_process.terminate()
-            except Exception:
-                pass
+        terminate_process_tree(self.mpv_process)
 
         # Notificación visual y activación de la barra de progreso
         self.prog_bar.start(10)
         self.btn_cancel.config(state=tk.NORMAL)
-        if is_en:
+        if safe_software:
+            self.status_var.set(
+                "⚠ Retrying playback in safe software mode..." if is_en
+                else "⚠ Reintentando reproducción en modo software seguro..."
+            )
+        elif is_en:
             self.status_var.set("⏳ Loading YouTube buffer... player will launch in ~10-15s")
         else:
             self.status_var.set("⏳ Cargando buffer de YouTube... el reproductor abrirá automáticamente en ~10-15s")
@@ -1459,6 +1482,7 @@ class YtCliGUI:
             cmd += [
                 f"--title={title_text}",
                 "--vid=no",
+                "--hwdec=no" if IS_WINDOWS else "--hwdec=auto-safe",
                 "--force-window=yes",
                 "--geometry=560x220",
                 "--player-operation-mode=pseudo-gui",
@@ -1467,10 +1491,18 @@ class YtCliGUI:
         else:
             fmt = self.get_format_string()
             title_text = "YT-CLI - Video Player" if is_en else "YT-CLI - Reproductor de Vídeo"
+            if IS_WINDOWS:
+                vo_opt = "--vo=direct3d,sdl,gpu" if safe_software else "--vo=gpu,direct3d,sdl"
+                # Limitar hwdec a d3d11va/dxva2 evita que auto-safe pruebe vaapi-copy (vaapi-win32),
+                # causante de crash 0x80000003 en Win 7/8.1 y VMs. Si falla un driver, safe_software usa --hwdec=no.
+                hwdec_opt = "--hwdec=no" if safe_software else "--hwdec=d3d11va,dxva2,no"
+            else:
+                vo_opt = "--vo=gpu,direct3d,sdl"
+                hwdec_opt = "--hwdec=auto-safe"
             cmd += [
                 f"--title={title_text}",
-                "--vo=gpu,direct3d,sdl",
-                "--hwdec=auto-safe",
+                vo_opt,
+                hwdec_opt,
                 f"--ytdl-format={fmt}"
             ]
 
@@ -1490,6 +1522,9 @@ class YtCliGUI:
                     self.prog_bar.stop()
                     self.btn_cancel.config(state=tk.DISABLED)
                     if poll_code != 0:
+                        if IS_WINDOWS and not audio_only and not safe_software and (poll_code < 0 or poll_code > 4):
+                            self.play_selected(audio_only=False, safe_software=True)
+                            return
                         err_text = f"Player closed unexpectedly (exit code {poll_code})." if is_en else f"El reproductor se cerró inesperadamente (código {poll_code})."
                         self.status_var.set(err_text)
                     else:
@@ -2152,20 +2187,12 @@ class YtCliGUI:
         self.is_cancelled = True
         is_en = self.current_lang != "es"
         if self.mpv_process:
-            if self.mpv_process.poll() is None:
-                try:
-                    self.mpv_process.terminate()
-                except Exception:
-                    pass
+            terminate_process_tree(self.mpv_process)
             self.mpv_process = None
             self.status_var.set("Playback stopped." if is_en else "Reproducción detenida.")
 
         if self.active_process:
-            if self.active_process.poll() is None:
-                try:
-                    self.active_process.terminate()
-                except Exception:
-                    pass
+            terminate_process_tree(self.active_process)
             self.active_process = None
             self.status_var.set("Download cancelled." if is_en else "Descarga cancelada.")
 
@@ -2178,16 +2205,8 @@ class YtCliGUI:
     def on_close(self):
         """Mata limpiamente todos los subprocesos al cerrar la ventana."""
         self.is_cancelled = True
-        if self.mpv_process and self.mpv_process.poll() is None:
-            try:
-                self.mpv_process.terminate()
-            except Exception:
-                pass
-        if self.active_process and self.active_process.poll() is None:
-            try:
-                self.active_process.terminate()
-            except Exception:
-                pass
+        terminate_process_tree(self.mpv_process)
+        terminate_process_tree(self.active_process)
         self.root.destroy()
 
     def process_queue(self):

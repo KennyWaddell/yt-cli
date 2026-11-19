@@ -95,6 +95,10 @@ jobs:
           if (!(Test-Path test_audio.mp3)) { throw "Fallo la conversion a MP3" }
           $mp3codec = & windows\bin\ffprobe.exe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 test_audio.mp3
           if ($mp3codec.Trim() -ne "mp3") { throw "El archivo MP3 generado no es valido: $mp3codec" }
+
+          Write-Host "=== TEST 7b: Prueba real de decodificacion mpv.exe con --hwdec=no ==="
+          & windows\bin\mpv.exe --no-config --vo=null --ao=null --hwdec=no test_merged.mp4
+          if ($LASTEXITCODE -ne 0) { throw "mpv.exe fallo al decodificar test_merged.mp4 con --hwdec=no" }
           Remove-Item test_v.mp4, test_a.m4a, test_merged.mp4, test_audio.mp3 -Force
 
           Write-Host "=== TEST 8: Verificando ausencia de APIs Win10-only en IAT de mpv.exe ==="
