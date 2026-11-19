@@ -140,6 +140,26 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertEqual(gui_stub.get_sponsorblock_cats("standard"), "sponsor,selfpromo,interaction,intro,outro")
         self.assertEqual(gui_stub.get_sponsorblock_cats("all"), "all")
 
+    def test_build_trim_section(self):
+        """build_trim_section valida rangos MM:SS y HH:MM:SS incluyendo duraciones largas."""
+        self.assertEqual(yt_cli_gui.build_trim_section("00:00:00", "00:00:00"), "")
+        self.assertEqual(yt_cli_gui.build_trim_section("00:00", "00:00"), "")
+        self.assertEqual(yt_cli_gui.build_trim_section("01:15", "02:30"), "01:15-02:30")
+        self.assertEqual(yt_cli_gui.build_trim_section("00:00:00", "12:00:00"), "00:00:00-12:00:00")
+        with self.assertRaises(ValueError):
+            yt_cli_gui.build_trim_section("02:00", "01:00")
+        with self.assertRaises(ValueError):
+            yt_cli_gui.build_trim_section("abc", "01:00")
+
+    def test_gui_download_and_ux_fixes(self):
+        """La GUI incluye Enter en tabla, conversión de carátula JPG para FLAC y sort por resolución."""
+        with open(os.path.join(WINDOWS_DIR, "yt_cli_gui.py"), "r", encoding="utf-8") as f:
+            gui_src = f.read()
+        self.assertIn('self.tree.bind("<Return>"', gui_src)
+        self.assertIn("--convert-thumbnails", gui_src)
+        self.assertIn('f"res:{quality},vcodec:h264"', gui_src)
+        self.assertIn("def open_help_dialog", gui_src)
+
 
 if __name__ == "__main__":
     unittest.main()

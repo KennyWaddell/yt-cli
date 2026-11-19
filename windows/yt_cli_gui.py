@@ -264,6 +264,26 @@ def parse_duration_to_seconds(dur_str):
         return 0
     return 0
 
+
+def build_trim_section(start_str, end_str):
+    """Valida y normaliza un rango de tiempo (MM:SS o HH:MM:SS) para --download-sections."""
+    s_val = (start_str or "").strip()
+    e_val = (end_str or "").strip()
+    if not s_val or not e_val:
+        raise ValueError("empty")
+
+    time_re = re.compile(r"^\d{1,3}(:\d{1,2}){1,2}$")
+    if not time_re.match(s_val) or not time_re.match(e_val):
+        raise ValueError("format")
+
+    s_sec = parse_duration_to_seconds(s_val)
+    e_sec = parse_duration_to_seconds(e_val)
+    if s_sec == 0 and e_sec == 0:
+        return ""
+    if e_sec <= s_sec:
+        raise ValueError("range")
+    return f"{s_val}-{e_val}"
+
 class YtCliGUI:
     def __init__(self, root):
         self.root = root
@@ -375,6 +395,19 @@ class YtCliGUI:
             cursor="hand2"
         )
         self.btn_about.pack(side=tk.RIGHT, padx=(0, 6))
+
+        self.btn_help = tk.Button(
+            self.header_frame,
+            text="Ayuda",
+            font=("sans-serif", 8, "bold"),
+            command=self.open_help_dialog,
+            relief="flat",
+            bd=0,
+            padx=10,
+            pady=4,
+            cursor="hand2"
+        )
+        self.btn_help.pack(side=tk.RIGHT, padx=(0, 6))
 
         self.var_lang_display = tk.StringVar()
         lang_names = [name for _, name in LANG_OPTIONS]
@@ -560,6 +593,8 @@ class YtCliGUI:
         tree_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.tree.bind("<Double-1>", lambda e: self.play_selected(audio_only=False))
+        self.tree.bind("<Return>", lambda e: self.play_selected(audio_only=False))
+        self.tree.bind("<KP_Enter>", lambda e: self.play_selected(audio_only=False))
         self.tree.bind("<Button-3>", self.on_tree_right_click)
         self.tree.bind("<Delete>", self.on_tree_delete_key)
 
@@ -678,6 +713,10 @@ class YtCliGUI:
             fg=pal["btn_secondary_fg"]
         )
         self.btn_about.configure(
+            bg=pal["btn_secondary_bg"],
+            fg=pal["btn_secondary_fg"]
+        )
+        self.btn_help.configure(
             bg=pal["btn_secondary_bg"],
             fg=pal["btn_secondary_fg"]
         )
@@ -901,6 +940,7 @@ class YtCliGUI:
                 break
         self.btn_theme_toggle.config(text=s["theme_light"] if self.current_theme == "dark" else s["theme_dark"])
         self.btn_about.config(text=s["credits"])
+        self.btn_help.config(text="Help" if self.current_lang != "es" else "Ayuda")
         self.btn_paste.config(text=s["paste"])
         self.btn_clear.config(text=s["clear"])
         self.btn_search.config(text=s["search"])
@@ -1334,6 +1374,91 @@ class YtCliGUI:
         )
         btn_close.pack()
 
+    def open_help_dialog(self):
+        """Muestra una guía rápida de uso y atajos para YT-CLI."""
+        is_en = self.current_lang != "es"
+        dialog = tk.Toplevel(self.root)
+        dialog.title("YT-CLI Help" if is_en else "Ayuda de YT-CLI")
+        dialog.geometry("520x420")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        pal = THEMES[self.current_theme]
+        dialog.configure(bg=pal["card_bg"])
+
+        tk.Label(
+            dialog,
+            text="Quick Guide & Tips" if is_en else "Guía Rápida y Consejos",
+            font=("sans-serif", 11, "bold"),
+            bg=pal["card_bg"],
+            fg=pal["fg"]
+        ).pack(pady=(12, 6))
+
+        help_text = (
+            "1. Search & Channel Jump:\n"
+            "   • Type keywords, a YouTube URL, or @channel (e.g. @midudev).\n"
+            "   • Right-click any result to browse videos from that channel.\n\n"
+            "2. Playback Controls:\n"
+            "   • Double-click or press Enter on a result to play video.\n"
+            "   • Inside MPV: Space (Pause), Left/Right (Seek), F (Fullscreen),\n"
+            "     9/0 (Volume), L (Loop in audio mode), Q (Quit & save position).\n\n"
+            "3. Downloads & Trimming:\n"
+            "   • In MP4/Audio options you can choose quality, FPS, and format.\n"
+            "   • Time trimming accepts HH:MM:SS or MM:SS (e.g. 00:01:30 to 00:05:00).\n"
+            "   • Subtitles are fetched in the active interface language (.srt + .txt).\n\n"
+            "4. Cookies & Updates:\n"
+            "   • Select your browser in Cookies only for age-restricted/private videos.\n"
+            "   • If YouTube changes something, replace bin/yt-dlp.exe with the latest\n"
+            "     official release without reinstalling YT-CLI."
+        ) if is_en else (
+            "1. Búsqueda y Salto a Canal:\n"
+            "   • Escribe palabras clave, un enlace de YouTube o @canal (ej. @midudev).\n"
+            "   • Haz clic derecho sobre cualquier resultado para ver vídeos de ese canal.\n\n"
+            "2. Controles de Reproducción:\n"
+            "   • Haz doble clic o pulsa Enter sobre un resultado para reproducirlo.\n"
+            "   • Dentro de MPV: Espacio (Pausa), Flechas (Avanzar/Retroceder),\n"
+            "     F (Pantalla completa), 9/0 (Volumen), L (Bucle en audio), Q (Salir).\n\n"
+            "3. Descargas y Recorte por Tiempo:\n"
+            "   • En Opciones de MP4/Audio puedes elegir resolución, FPS y formato.\n"
+            "   • El recorte acepta HH:MM:SS o MM:SS (ej. 00:01:30 a 00:05:00).\n"
+            "   • Los subtítulos se descargan en el idioma actual de la interfaz (.srt + .txt).\n\n"
+            "4. Cookies y Actualizaciones:\n"
+            "   • Usa Cookies solo para vídeos privados o con restricción de edad.\n"
+            "   • Si YouTube cambia su sistema, reemplaza bin/yt-dlp.exe por el más\n"
+            "     reciente sin tener que reinstalar YT-CLI."
+        )
+
+        txt_box = tk.Text(
+            dialog,
+            wrap="word",
+            font=("sans-serif", 9),
+            bg=pal["entry_bg"],
+            fg=pal["fg"],
+            bd=1,
+            relief="solid",
+            padx=12,
+            pady=10,
+            height=17
+        )
+        txt_box.insert("1.0", help_text)
+        txt_box.config(state=tk.DISABLED)
+        txt_box.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 10))
+
+        tk.Button(
+            dialog,
+            text="Close" if is_en else "Cerrar",
+            command=dialog.destroy,
+            font=("sans-serif", 9, "bold"),
+            bg=pal["btn_primary_bg"],
+            fg=pal["btn_primary_fg"],
+            relief="flat",
+            bd=0,
+            padx=16,
+            pady=4,
+            cursor="hand2"
+        ).pack(pady=(0, 12))
+
     def open_history_settings(self):
         data = load_history_data()
 
@@ -1620,14 +1745,14 @@ class YtCliGUI:
         trim_inputs = tk.Frame(trim_frame, bg=pal["card_bg"])
         trim_inputs.pack(fill=tk.X)
 
-        tk.Label(trim_inputs, text="From (MM:SS):" if is_en else "Desde (MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
-        ent_start = tk.Entry(trim_inputs, width=7, font=("sans-serif", 9), bd=1)
-        ent_start.insert(0, "00:00")
-        ent_start.pack(side=tk.LEFT, padx=(4, 12))
+        tk.Label(trim_inputs, text="From (HH:MM:SS):" if is_en else "Desde (HH:MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        ent_start = tk.Entry(trim_inputs, width=9, font=("sans-serif", 9), bd=1)
+        ent_start.insert(0, "00:00:00")
+        ent_start.pack(side=tk.LEFT, padx=(4, 10))
 
-        tk.Label(trim_inputs, text="To (MM:SS):" if is_en else "Hasta (MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
-        ent_end = tk.Entry(trim_inputs, width=7, font=("sans-serif", 9), bd=1)
-        ent_end.insert(0, "00:00")
+        tk.Label(trim_inputs, text="To (HH:MM:SS):" if is_en else "Hasta (HH:MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        ent_end = tk.Entry(trim_inputs, width=9, font=("sans-serif", 9), bd=1)
+        ent_end.insert(0, "00:00:00")
         ent_end.pack(side=tk.LEFT, padx=4)
 
         def confirm():
@@ -1637,18 +1762,24 @@ class YtCliGUI:
             split = var_split.get()
             sb = var_sb.get()
             sb_prof = var_sb_prof.get().lower()
+            trim_spec = ""
+            if var_trim.get():
+                try:
+                    trim_spec = build_trim_section(ent_start.get(), ent_end.get())
+                except ValueError:
+                    msg_err = (
+                        "Invalid trim range. Use HH:MM:SS or MM:SS and ensure 'To' is greater than 'From'."
+                        if is_en else
+                        "Rango de recorte inválido. Usa HH:MM:SS o MM:SS y asegúrate de que 'Hasta' sea mayor que 'Desde'."
+                    )
+                    messagebox.showwarning("Trim" if is_en else "Recorte", msg_err, parent=dialog)
+                    return
             self.sponsorblock_enabled = sb
             self.sponsorblock_profile = sb_prof
             settings = load_settings()
             settings["sponsorblock"] = sb
             settings["sponsorblock_profile"] = sb_prof
             save_settings(settings)
-            trim_spec = ""
-            if var_trim.get():
-                s_val = ent_start.get().strip()
-                e_val = ent_end.get().strip()
-                if s_val and e_val and (s_val != "00:00" or e_val != "00:00"):
-                    trim_spec = f"{s_val}-{e_val}"
             dialog.destroy()
             self.start_download(mode="video", quality=q, fps=fps, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec, sponsorblock=sb, sponsorblock_profile=sb_prof)
 
@@ -1732,14 +1863,14 @@ class YtCliGUI:
         trim_inputs = tk.Frame(trim_frame, bg=pal["card_bg"])
         trim_inputs.pack(fill=tk.X)
 
-        tk.Label(trim_inputs, text="From (MM:SS):" if is_en else "Desde (MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
-        ent_start = tk.Entry(trim_inputs, width=7, font=("sans-serif", 9), bd=1)
-        ent_start.insert(0, "00:00")
-        ent_start.pack(side=tk.LEFT, padx=(4, 12))
+        tk.Label(trim_inputs, text="From (HH:MM:SS):" if is_en else "Desde (HH:MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        ent_start = tk.Entry(trim_inputs, width=9, font=("sans-serif", 9), bd=1)
+        ent_start.insert(0, "00:00:00")
+        ent_start.pack(side=tk.LEFT, padx=(4, 10))
 
-        tk.Label(trim_inputs, text="To (MM:SS):" if is_en else "Hasta (MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
-        ent_end = tk.Entry(trim_inputs, width=7, font=("sans-serif", 9), bd=1)
-        ent_end.insert(0, "00:00")
+        tk.Label(trim_inputs, text="To (HH:MM:SS):" if is_en else "Hasta (HH:MM:SS):", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        ent_end = tk.Entry(trim_inputs, width=9, font=("sans-serif", 9), bd=1)
+        ent_end.insert(0, "00:00:00")
         ent_end.pack(side=tk.LEFT, padx=4)
 
         def confirm():
@@ -1749,18 +1880,24 @@ class YtCliGUI:
             split = var_split.get()
             sb = var_sb.get()
             sb_prof = var_sb_prof.get().lower()
+            trim_spec = ""
+            if var_trim.get():
+                try:
+                    trim_spec = build_trim_section(ent_start.get(), ent_end.get())
+                except ValueError:
+                    msg_err = (
+                        "Invalid trim range. Use HH:MM:SS or MM:SS and ensure 'To' is greater than 'From'."
+                        if is_en else
+                        "Rango de recorte inválido. Usa HH:MM:SS o MM:SS y asegúrate de que 'Hasta' sea mayor que 'Desde'."
+                    )
+                    messagebox.showwarning("Trim" if is_en else "Recorte", msg_err, parent=dialog)
+                    return
             self.sponsorblock_enabled = sb
             self.sponsorblock_profile = sb_prof
             settings = load_settings()
             settings["sponsorblock"] = sb
             settings["sponsorblock_profile"] = sb_prof
             save_settings(settings)
-            trim_spec = ""
-            if var_trim.get():
-                s_val = ent_start.get().strip()
-                e_val = ent_end.get().strip()
-                if s_val and e_val and (s_val != "00:00" or e_val != "00:00"):
-                    trim_spec = f"{s_val}-{e_val}"
             dialog.destroy()
             self.start_download(mode="audio", audio_format=fmt, bitrate=br, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec, sponsorblock=sb, sponsorblock_profile=sb_prof)
 
@@ -1851,6 +1988,7 @@ class YtCliGUI:
             base_cmd = [
                 ytdlp_cmd,
                 "--encoding", "utf-8",
+                "--newline",
                 "-c",
                 "--no-mtime",
                 "--no-download-archive",
@@ -1870,7 +2008,6 @@ class YtCliGUI:
                 clean_e = trim_section.split("-")[1].replace(":", "") if "-" in trim_section else "end"
                 base_cmd += [
                     "--download-sections", f"*{trim_section}",
-                    "--force-keyframes-at-cuts",
                     "-o", f"%(title)s [{clean_s}_{clean_e}].%(ext)s"
                 ]
             else:
@@ -1891,17 +2028,18 @@ class YtCliGUI:
                     fps_filter = "[fps<=60]"
 
                 fmt = (
-                    f"bestvideo[height<={quality}]{fps_filter}[vcodec^=avc1]+bestaudio[ext=m4a]/"
+                    f"bestvideo[height<={quality}]{fps_filter}+bestaudio[ext=m4a]/"
                     f"bestvideo[height<={quality}]{fps_filter}+bestaudio/"
                     f"best[height<={quality}]{fps_filter}/best"
                 )
                 base_cmd += [
                     "-f", fmt,
+                    "-S", f"res:{quality},vcodec:h264",
                     "--merge-output-format", "mp4",
                     "--ffmpeg-location", ffmpeg_cmd
                 ]
                 if embed_thumb:
-                    base_cmd += ["--embed-thumbnail"]
+                    base_cmd += ["--embed-thumbnail", "--convert-thumbnails", "jpg"]
             else:
                 if audio_format == "m4a":
                     base_cmd += [
@@ -1931,7 +2069,7 @@ class YtCliGUI:
                         "--ffmpeg-location", ffmpeg_cmd
                     ]
                 if embed_thumb:
-                    base_cmd += ["--embed-thumbnail"]
+                    base_cmd += ["--embed-thumbnail", "--convert-thumbnails", "jpg"]
 
             force_overwrite = False
             while True:
@@ -1969,6 +2107,12 @@ class YtCliGUI:
                         elif "[download]" in line and "%" in line:
                             pct_text = line_clean.replace("[download]", "").strip()
                             self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {pct_text}"))
+                            m_pct = re.search(r"(\d+(?:\.\d+)?)%", line_clean)
+                            if m_pct:
+                                try:
+                                    self.msg_queue.put(("progress", float(m_pct.group(1))))
+                                except ValueError:
+                                    pass
                         elif "has already been downloaded" in line:
                             already_exists = True
                         elif "ffmpeg is not installed" in line or "won't be merged" in line:
@@ -2100,7 +2244,7 @@ class YtCliGUI:
                 "--skip-download",
                 "--write-subs",
                 "--write-auto-subs",
-                "--sub-lang", f"{self.current_lang},es,en",
+                "--sub-lang", self.current_lang,
                 "--extractor-args", f"youtube:lang={self.current_lang}",
                 "--ffmpeg-location", ffmpeg_cmd,
                 "--sub-format", "srt/vtt/best",
@@ -2115,6 +2259,7 @@ class YtCliGUI:
                 cmd += ["--cookies-from-browser", cookie_choice.lower()]
 
             cmd.append(url)
+            sub_start_time = time.time()
 
             try:
                 proc = subprocess.Popen(
@@ -2137,7 +2282,12 @@ class YtCliGUI:
                 proc.wait()
                 if self.is_cancelled:
                     break
-                if proc.returncode != 0:
+
+                recent_srts = [
+                    p for p in glob.glob(os.path.join(self.download_dir, "*.srt"))
+                    if os.path.isfile(p) and os.path.getsize(p) > 0 and os.path.getmtime(p) >= sub_start_time - 2.0
+                ]
+                if proc.returncode != 0 and not recent_srts:
                     has_error = True
                     last_error_msg = f"Subtitle extraction item {idx} failed (code {proc.returncode})" if is_en else f"Error en elemento {idx} al extraer subtítulos (código {proc.returncode})"
                     self.msg_queue.put(("error", last_error_msg))
@@ -2200,7 +2350,14 @@ class YtCliGUI:
         self.btn_dl_video.config(state=tk.NORMAL)
         self.btn_dl_audio.config(state=tk.NORMAL)
         self.btn_extract_subs.config(state=tk.NORMAL)
+        self._reset_progress_bar(active=False)
+
+    def _reset_progress_bar(self, active=False):
+        """Restablece la barra de progreso a modo indeterminado y opcionalmente la inicia."""
         self.prog_bar.stop()
+        self.prog_bar.config(mode="indeterminate", value=0)
+        if active:
+            self.prog_bar.start(10)
 
     def on_close(self):
         """Mata limpiamente todos los subprocesos al cerrar la ventana."""
@@ -2214,7 +2371,7 @@ class YtCliGUI:
             while True:
                 msg, data = self.msg_queue.get_nowait()
                 if msg == "search_done":
-                    self.prog_bar.stop()
+                    self._reset_progress_bar(active=False)
                     self.btn_search.config(state=tk.NORMAL)
                     self.last_search_results = data
                     self.is_viewing_history = False
@@ -2227,6 +2384,9 @@ class YtCliGUI:
                     self.status_var.set(f"{s['ready']} ({len(data)})")
                 elif msg == "status":
                     self.status_var.set(data)
+                elif msg == "progress":
+                    self.prog_bar.stop()
+                    self.prog_bar.config(mode="determinate", maximum=100, value=max(0.0, min(100.0, float(data))))
                 elif msg == "ask_yesno":
                     title_ask, msg_ask, evt, result_box = data
                     try:
@@ -2237,7 +2397,7 @@ class YtCliGUI:
                     self.status_var.set(data)
                     messagebox.showerror("Aviso", data)
                 elif msg == "download_cancelled":
-                    self.prog_bar.stop()
+                    self._reset_progress_bar(active=False)
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
@@ -2245,7 +2405,7 @@ class YtCliGUI:
                     is_en = self.current_lang == "en"
                     self.status_var.set("Download cancelled by user." if is_en else "Descarga cancelada por el usuario.")
                 elif msg == "download_error":
-                    self.prog_bar.stop()
+                    self._reset_progress_bar(active=False)
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
@@ -2253,7 +2413,7 @@ class YtCliGUI:
                     is_en = self.current_lang == "en"
                     self.status_var.set("Operation finished with errors." if is_en else "Operación finalizada con errores.")
                 elif msg == "download_done":
-                    self.prog_bar.stop()
+                    self._reset_progress_bar(active=False)
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
