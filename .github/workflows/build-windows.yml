@@ -85,7 +85,15 @@ jobs:
           & windows\bin\ffmpeg.exe -f lavfi -i sine=f=440:d=1 -c:a aac test_a.m4a -y
           & windows\bin\ffmpeg.exe -i test_v.mp4 -i test_a.m4a -c copy test_merged.mp4 -y
           if (!(Test-Path test_merged.mp4)) { throw "Fallo la creacion y fusion del contenedor MP4" }
-          Remove-Item test_v.mp4, test_a.m4a, test_merged.mp4 -Force
+          $streams = & windows\bin\ffprobe.exe -v error -show_entries stream=codec_type -of csv=p=0 test_merged.mp4
+          if (($streams -join ",") -notmatch "video" -or ($streams -join ",") -notmatch "audio") { throw "El MP4 fusionado no contiene ambas pistas" }
+
+          Write-Host "=== TEST 7: Prueba real de conversion a MP3 verificada con ffprobe ==="
+          & windows\bin\ffmpeg.exe -i test_merged.mp4 -vn -c:a libmp3lame -b:a 320k test_audio.mp3 -y
+          if (!(Test-Path test_audio.mp3)) { throw "Fallo la conversion a MP3" }
+          $mp3codec = & windows\bin\ffprobe.exe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 test_audio.mp3
+          if ($mp3codec.Trim() -ne "mp3") { throw "El archivo MP3 generado no es valido: $mp3codec" }
+          Remove-Item test_v.mp4, test_a.m4a, test_merged.mp4, test_audio.mp3 -Force
 
           Write-Host "=== [EXITO] TODOS LOS TESTS ENTORNO WINDOWS PASARON AL 100% ==="
 

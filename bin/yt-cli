@@ -104,6 +104,9 @@ ensure_config_file() {
 # Network retries for unstable connections
 # RETRY_WAIT=5
 # FRAGMENT_RETRIES=10
+
+# Skip sponsored segments automatically on downloads (SponsorBlock)
+# SPONSORBLOCK=false
 EOF
     fi
 }
@@ -120,6 +123,9 @@ if [ -f "$CONFIG_FILE" ]; then
     if grep -Eq '^[[:space:]]*RETRY_WAIT=' "$CONFIG_FILE" 2>/dev/null; then
         r_wait=$(grep -E '^[[:space:]]*RETRY_WAIT=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
         [ -n "$r_wait" ] && EXTRA_YTDL_ARGS+=("--retry-wait" "$r_wait")
+    fi
+    if grep -Eq '^[[:space:]]*SPONSORBLOCK=(true|1)' "$CONFIG_FILE" 2>/dev/null; then
+        EXTRA_YTDL_ARGS+=("--sponsorblock-remove" "sponsor,selfpromo")
     fi
 fi
 
@@ -144,8 +150,11 @@ fi
 
 detect_default_lang() {
     local sys_l="${LANG:-${LC_ALL:-en}}"
-    if [[ "$sys_l" =~ ^es ]]; then
-        echo "es"
+    local code="${sys_l%%_*}"
+    code="${code%%.*}"
+    code="${code,,}"
+    if [ -n "$LANG_DIR" ] && [ -f "${LANG_DIR}/${code}.sh" ]; then
+        echo "$code"
     else
         echo "en"
     fi
@@ -166,18 +175,33 @@ load_language() {
 }
 
 set_language() {
-    local new_lang="${1:-}"
-    if [[ "$new_lang" != "es" && "$new_lang" != "en" ]]; then
+    local new_lang="${1,,}"
+    if [ -z "$new_lang" ] || [ ! -f "${LANG_DIR}/${new_lang}.sh" ]; then
         echo -e "${C_CYAN}${MSG_LANG_CHOOSE:-Select language / Selecciona idioma:}${C_RESET}"
-        echo -e "  [1] Español"
-        echo -e "  [2] English"
-        echo -ne "Opción / Choice [1-2]: "
+        local -a codes=()
+        local i=1
+        for f in "${LANG_DIR}"/*.sh; do
+            [ -f "$f" ] || continue
+            local c_code
+            c_code="$(basename "$f" .sh)"
+            local c_name
+            c_name="$(grep -E '^LANG_NAME=' "$f" 2>/dev/null | head -n1 | cut -d'=' -f2- | tr -d '"'\''')"
+            [ -z "$c_name" ] && c_name="$c_code"
+            codes+=("$c_code")
+            printf "  [%2d] %-14s (%s)\n" "$i" "$c_name" "$c_code"
+            i=$((i + 1))
+        done
+        local total=${#codes[@]}
+        echo -ne "Opción / Choice [1-${total} o código]: "
         local c=""
         if [ -t 0 ]; then read -r c; else read -r c </dev/tty; fi
-        case "$c" in
-            2|[eE]*) new_lang="en" ;;
-            *) new_lang="es" ;;
-        esac
+        if [[ "$c" =~ ^[0-9]+$ ]] && [ "$c" -ge 1 ] && [ "$c" -le "$total" ]; then
+            new_lang="${codes[$((c - 1))]}"
+        elif [ -n "$c" ] && [ -f "${LANG_DIR}/${c,,}.sh" ]; then
+            new_lang="${c,,}"
+        else
+            new_lang="$CURRENT_LANG"
+        fi
     fi
 
     load_language "$new_lang"
@@ -1402,7 +1426,8 @@ main() {
                 echo "  -H, --history                 Abrir el historial de vídeos vistos"
                 echo "      --clear-history           Borrar todo el historial guardado"
                 echo "      --clear-archive           Reiniciar el registro de vídeos ya descargados"
-                echo "      --lang [es|en]            Configurar idioma / Set language"
+                echo "  -sb,--sponsorblock            Omitir patrocinadores al descargar (SponsorBlock)"
+                echo "      --lang [código]           Configurar idioma / Set language"
                 echo "  -v, --version, --about        Mostrar versión y créditos / Show credits"
                 echo "  -h, --help                    Mostrar esta ayuda"
                 echo ""
@@ -1460,6 +1485,10 @@ main() {
             --clear-archive)
                 clear_download_archive
                 exit 0
+                ;;
+            -sb|--sponsorblock)
+                EXTRA_YTDL_ARGS+=("--sponsorblock-remove" "sponsor,selfpromo")
+                shift 1
                 ;;
             --min-views)
                 if [ $# -gt 1 ]; then
