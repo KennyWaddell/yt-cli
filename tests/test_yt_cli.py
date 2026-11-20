@@ -165,6 +165,8 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertIn("def open_download_dir", gui_src)
         self.assertIn("def start_ytdlp_update", gui_src)
         self.assertIn('s["update_ytdlp"]', gui_src)
+        self.assertIn("def clear_downloads_from_view", gui_src)
+        self.assertIn('s["dl_clear_all"]', gui_src)
 
     def test_is_playlist_url(self):
         """is_playlist_url distingue URLs de playlist de vídeos individuales o enlaces ajenos."""

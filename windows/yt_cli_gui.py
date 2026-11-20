@@ -1061,7 +1061,7 @@ class YtCliGUI:
         self.btn_history.config(text=s["history_back"] if self.is_viewing_history else s["history"])
         self.btn_downloads.config(text=s["history_back"] if self.is_viewing_downloads else s["downloads"])
         self.btn_hist_opts.config(text=s["history_opts"])
-        self.btn_hist_clear.config(text=s["hist_clear_all"])
+        self.btn_hist_clear.config(text=s["dl_clear_all"] if self.is_viewing_downloads else s["hist_clear_all"])
         self.lbl_limit.config(text=s["results_label"])
         self.lbl_qual.config(text=s["quality_label"])
         self.lbl_fps.config(text=s["fps_label"])
@@ -1380,6 +1380,7 @@ class YtCliGUI:
         s = self.get_strings()
         self.btn_history.config(text=s["history_back"])
         self.btn_downloads.config(text=s["downloads"])
+        self.btn_hist_clear.config(text=s["hist_clear_all"], command=self.clear_history_from_view)
         self.btn_hist_clear.pack(side=tk.RIGHT)
 
         for item in self.tree.get_children():
@@ -1405,7 +1406,8 @@ class YtCliGUI:
         s = self.get_strings()
         self.btn_downloads.config(text=s["history_back"])
         self.btn_history.config(text=s["history"])
-        self.btn_hist_clear.pack_forget()
+        self.btn_hist_clear.config(text=s["dl_clear_all"], command=self.clear_downloads_from_view)
+        self.btn_hist_clear.pack(side=tk.RIGHT)
 
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -1466,6 +1468,19 @@ class YtCliGUI:
             data = load_history_data()
             data["history"] = []
             save_history_data(data)
+            self.show_last_search()
+
+    def clear_downloads_from_view(self):
+        """Limpia la lista registrada de descargas sin eliminar archivos del disco."""
+        is_es = self.current_lang == "es"
+        s = self.get_strings()
+        msg_ask = (
+            "¿Borrar toda la lista de descargas?\n(No eliminará los archivos guardados en el disco.)"
+            if is_es else
+            "Clear all download history entries?\n(Files saved on disk will NOT be deleted.)"
+        )
+        if messagebox.askyesno(s["downloads"], msg_ask):
+            save_downloads_data([])
             self.show_last_search()
 
     def remove_selected_from_history(self):
@@ -1585,6 +1600,7 @@ class YtCliGUI:
             menu.add_separator()
             menu.add_command(label=s["hist_remove_item"], command=lambda: self.remove_selected_downloads(delete_disk=False))
             menu.add_command(label=s["dl_delete_file"], command=lambda: self.remove_selected_downloads(delete_disk=True))
+            menu.add_command(label=s["dl_clear_all"], command=self.clear_downloads_from_view)
         else:
             menu.add_command(label=s["open_channel"], command=self.open_channel_from_selected)
             if self.is_viewing_history:

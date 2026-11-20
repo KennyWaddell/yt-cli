@@ -60,6 +60,7 @@ GUI_STRINGS = {
         "dl_resume": "Reanudar descarga",
         "dl_delete_file": "Eliminar archivo del disco",
         "update_ytdlp": "🔄 Actualizar yt-dlp",
+        "dl_clear_all": "Limpiar Descargas",
     },
     "en": {
         "title": "YT-CLI",
@@ -103,6 +104,7 @@ GUI_STRINGS = {
         "dl_resume": "Resume download",
         "dl_delete_file": "Delete file from disk",
         "update_ytdlp": "🔄 Update yt-dlp",
+        "dl_clear_all": "Clear Downloads",
     },
     "zh": {
         "title": "YT-CLI",
@@ -146,6 +148,7 @@ GUI_STRINGS = {
         "dl_resume": "继续下载",
         "dl_delete_file": "从磁盘删除文件",
         "update_ytdlp": "🔄 更新 yt-dlp",
+        "dl_clear_all": "清空下载记录",
     },
     "hi": {
         "title": "YT-CLI",
@@ -189,6 +192,7 @@ GUI_STRINGS = {
         "dl_resume": "डाउनलोड फिर शुरू करें",
         "dl_delete_file": "डिस्क से फ़ाइल हटाएं",
         "update_ytdlp": "🔄 yt-dlp अपडेट करें",
+        "dl_clear_all": "डाउनलोड साफ़ करें",
     },
     "ar": {
         "title": "YT-CLI",
@@ -232,6 +236,7 @@ GUI_STRINGS = {
         "dl_resume": "استئناف التنزيل",
         "dl_delete_file": "حذف الملف من القرص",
         "update_ytdlp": "🔄 تحديث yt-dlp",
+        "dl_clear_all": "مسح التنزيلات",
     },
     "pt": {
         "title": "YT-CLI",
@@ -275,6 +280,7 @@ GUI_STRINGS = {
         "dl_resume": "Retomar download",
         "dl_delete_file": "Excluir arquivo do disco",
         "update_ytdlp": "🔄 Atualizar yt-dlp",
+        "dl_clear_all": "Limpar Downloads",
     },
     "fr": {
         "title": "YT-CLI",
@@ -318,6 +324,7 @@ GUI_STRINGS = {
         "dl_resume": "Reprendre le téléchargement",
         "dl_delete_file": "Supprimer le fichier du disque",
         "update_ytdlp": "🔄 Mettre à jour yt-dlp",
+        "dl_clear_all": "Vider les téléchargements",
     },
     "de": {
         "title": "YT-CLI",
@@ -361,6 +368,7 @@ GUI_STRINGS = {
         "dl_resume": "Download fortsetzen",
         "dl_delete_file": "Datei von Festplatte löschen",
         "update_ytdlp": "🔄 yt-dlp aktualisieren",
+        "dl_clear_all": "Downloads leeren",
     },
     "ru": {
         "title": "YT-CLI",
@@ -404,6 +412,7 @@ GUI_STRINGS = {
         "dl_resume": "Возобновить загрузку",
         "dl_delete_file": "Удалить файл с диска",
         "update_ytdlp": "🔄 Обновить yt-dlp",
+        "dl_clear_all": "Очистить загрузки",
     },
     "ja": {
         "title": "YT-CLI",
@@ -447,5 +456,6 @@ GUI_STRINGS = {
         "dl_resume": "ダウンロード再開",
         "dl_delete_file": "ディスクからファイルを削除",
         "update_ytdlp": "🔄 yt-dlp を更新",
+        "dl_clear_all": "ダウンロード履歴を消去",
     },
 }
