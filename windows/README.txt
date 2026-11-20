@@ -59,7 +59,8 @@ A: This is a classic heuristic false positive common to PyInstaller executables
    then "Run anyway".
 
 Q: How do I update yt-dlp if YouTube makes internal changes?
-A: Simply replace "yt-dlp.exe" inside the "bin/" folder with the latest release:
+A: Open Options -> "Update yt-dlp" inside the app, or replace "yt-dlp.exe"
+   inside the "bin/" folder with the latest release:
    https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
    No recompilation or setup needed!
 
@@ -126,7 +127,8 @@ R: Es un falso positivo muy común en ejecutables empaquetados con PyInstaller
    y luego "Ejecutar de todas formas".
 
 P: ¿Qué hago si YouTube cambia su sistema y los vídeos dejan de cargar?
-R: Solo debes actualizar el motor yt-dlp.exe:
+R: Pulsa Opciones -> "Actualizar yt-dlp" dentro del programa, o actualiza
+   manualmente el motor "yt-dlp.exe":
    1. Descarga el ejecutable más reciente desde:
       https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
    2. Reemplaza el archivo "yt-dlp.exe" dentro de la subcarpeta "bin/".

@@ -14,6 +14,8 @@ import json
 import time
 import glob
 import re
+import shutil
+import tempfile
 import webbrowser
 from urllib.parse import urlparse, parse_qs
 import tkinter as tk
@@ -345,6 +347,27 @@ def build_trim_section(start_str, end_str):
         raise ValueError("range")
     return f"{s_val}-{e_val}"
 
+
+def build_ffmpeg_local_trim_cmd(ffmpeg_cmd, src_path, dest_path, trim_section):
+    """Construye el comando FFmpeg para recortar un archivo ya descargado sin conexiones TLS."""
+    if "-" not in (trim_section or ""):
+        raise ValueError("invalid trim_section")
+    s_str, e_str = trim_section.split("-", 1)
+    s_sec = parse_duration_to_seconds(s_str)
+    e_sec = parse_duration_to_seconds(e_str)
+    dur = max(1, e_sec - s_sec)
+    return [
+        ffmpeg_cmd,
+        "-y",
+        "-ss", str(s_sec),
+        "-t", str(dur),
+        "-i", src_path,
+        "-map", "0",
+        "-c", "copy",
+        "-avoid_negative_ts", "make_zero",
+        dest_path,
+    ]
+
 class YtCliGUI:
     def __init__(self, root):
         self.root = root
@@ -359,6 +382,8 @@ class YtCliGUI:
         self.sponsorblock_profile = settings.get("sponsorblock_profile", "basic")
         self.sponsorblock_mark = settings.get("sponsorblock_mark", False)
         self._channel_popup = None
+        self._updating_ytdlp = False
+        self._btn_update_ytdlp_ref = None
 
         self.msg_queue = queue.Queue()
         self.active_process = None
@@ -1690,8 +1715,8 @@ class YtCliGUI:
             "   • Subtitles are fetched in the active interface language (.srt + .txt).\n\n"
             "4. Cookies & Updates:\n"
             "   • Select your browser in Cookies only for age-restricted/private videos.\n"
-            "   • If YouTube changes something, replace bin/yt-dlp.exe with the latest\n"
-            "     official release without reinstalling YT-CLI."
+            "   • If YouTube changes something, open Options -> 'Update yt-dlp'\n"
+            "     (or replace bin/yt-dlp.exe manually) without reinstalling YT-CLI."
         ) if is_en else (
             "1. Búsqueda, Playlists y Salto a Canal:\n"
             "   • Escribe palabras clave, enlace de vídeo/playlist o @canal (ej. @kennyw).\n"
@@ -1709,8 +1734,8 @@ class YtCliGUI:
             "   • Los subtítulos se descargan en el idioma actual de la interfaz (.srt + .txt).\n\n"
             "4. Cookies y Actualizaciones:\n"
             "   • Usa Cookies solo para vídeos privados o con restricción de edad.\n"
-            "   • Si YouTube cambia su sistema, reemplaza bin/yt-dlp.exe por el más\n"
-            "     reciente sin tener que reinstalar YT-CLI."
+            "   • Si YouTube cambia su sistema, abre Opciones -> 'Actualizar yt-dlp'\n"
+            "     (o reemplaza bin/yt-dlp.exe) sin tener que reinstalar YT-CLI."
         )
 
         txt_box = tk.Text(
@@ -1748,7 +1773,7 @@ class YtCliGUI:
 
         dialog = tk.Toplevel(self.root)
         dialog.title("Opciones" if self.current_lang == "es" else "Options")
-        dialog.geometry("400x250")
+        dialog.geometry("410x295")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -1787,7 +1812,25 @@ class YtCliGUI:
         cb_sb_mark.pack(pady=(0, 6), padx=20, anchor="w")
 
         lbl_limit = tk.Label(dialog, text="Límite: hasta 50 vídeos recientes (rotación automática)", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg_muted"])
-        lbl_limit.pack(pady=(0, 14), padx=22, anchor="w")
+        lbl_limit.pack(pady=(0, 10), padx=22, anchor="w")
+
+        upd_box = tk.Frame(dialog, bg=pal["card_bg"])
+        upd_box.pack(fill=tk.X, padx=20, pady=(0, 12))
+        btn_upd = tk.Button(
+            upd_box,
+            text=s["update_ytdlp"],
+            command=self.start_ytdlp_update,
+            font=("sans-serif", 8, "bold"),
+            bg=pal["btn_secondary_bg"],
+            fg=pal["btn_secondary_fg"],
+            relief="flat",
+            padx=10,
+            pady=4,
+            cursor="hand2",
+            state=tk.DISABLED if self._updating_ytdlp else tk.NORMAL
+        )
+        btn_upd.pack(side=tk.LEFT)
+        self._btn_update_ytdlp_ref = btn_upd
 
         def clear_all():
             if messagebox.askyesno("Borrar Historial", "¿Estás seguro de que deseas borrar todo el historial?"):
@@ -1818,6 +1861,47 @@ class YtCliGUI:
 
         btn_ok = tk.Button(btn_box, text="Save and Close" if is_en else "Guardar y Cerrar", command=save_and_close, font=("sans-serif", 8, "bold"), bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], relief="flat", padx=10, pady=3, cursor="hand2")
         btn_ok.pack(side=tk.RIGHT)
+
+    def start_ytdlp_update(self):
+        """Lanza yt-dlp -U en segundo plano solo cuando no hay descargas ni reproducción activas."""
+        is_en = self.current_lang != "es"
+        if self._updating_ytdlp:
+            return
+        if self.active_process or self.mpv_process:
+            messagebox.showwarning(
+                "Update yt-dlp" if is_en else "Actualizar yt-dlp",
+                "Stop active playback or downloads before updating yt-dlp."
+                if is_en else
+                "Detén la reproducción o descarga activa antes de actualizar yt-dlp."
+            )
+            return
+
+        self._updating_ytdlp = True
+        if self._btn_update_ytdlp_ref is not None and self._btn_update_ytdlp_ref.winfo_exists():
+            self._btn_update_ytdlp_ref.config(state=tk.DISABLED)
+        self.prog_bar.start(10)
+        self.status_var.set("Checking for yt-dlp update..." if is_en else "Comprobando actualización de yt-dlp...")
+
+        threading.Thread(target=self._ytdlp_update_worker, args=(is_en,), daemon=True).start()
+
+    def _ytdlp_update_worker(self, is_en):
+        ytdlp_cmd = get_binary_path("yt-dlp")
+        try:
+            res = subprocess.run(
+                [ytdlp_cmd, "-U"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=120,
+                **SUBPROCESS_FLAGS
+            )
+            out_txt = (res.stdout or "").strip()
+            self.msg_queue.put(("ytdlp_update_done", (res.returncode == 0, out_txt)))
+        except Exception as exc:
+            err = f"Could not run yt-dlp update: {exc}" if is_en else f"No se pudo actualizar yt-dlp: {exc}"
+            self.msg_queue.put(("ytdlp_update_done", (False, err)))
 
     def play_selected(self, audio_only=False, safe_software=False):
         is_en = self.current_lang == "en"
@@ -2321,6 +2405,136 @@ class YtCliGUI:
             pass
         return log_path
 
+    def _run_ytdlp_download_cmd(self, cmd, env, idx, total_urls, is_en):
+        """Ejecuta un comando yt-dlp de descarga, reportando progreso y capturando salida."""
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            **SUBPROCESS_FLAGS
+        )
+        self.active_process = proc
+
+        merge_failed = False
+        already_exists = False
+        last_error_msg = ""
+        reported_files = []
+        all_output_lines = []
+
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            all_output_lines.append(line)
+            line_clean = line.strip()
+            if line_clean.startswith("__YTCLI_FILE__:"):
+                fpath = line_clean.split("__YTCLI_FILE__:", 1)[1].strip()
+                if fpath:
+                    reported_files.append(fpath)
+            elif "[download]" in line and "%" in line:
+                pct_text = line_clean.replace("[download]", "").strip()
+                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {pct_text}"))
+                m_pct = re.search(r"(\d+(?:\.\d+)?)%", line_clean)
+                if m_pct:
+                    try:
+                        self.msg_queue.put(("progress", float(m_pct.group(1))))
+                    except ValueError:
+                        pass
+            elif "[info]" in line_clean:
+                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {'Preparing download...' if is_en else 'Preparando descarga...'}"))
+            elif "time=" in line_clean and "bitrate=" in line_clean:
+                m_t = re.search(r"time=(\S+)", line_clean)
+                t_str = m_t.group(1) if m_t else ""
+                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {'Trimming/processing' if is_en else 'Procesando fragmento'} {t_str}".strip()))
+            elif "[ExtractAudio]" in line_clean or "[Merger]" in line_clean:
+                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {'Converting/merging...' if is_en else 'Convirtiendo/uniendo...'}"))
+            elif "has already been downloaded" in line:
+                already_exists = True
+            elif "ffmpeg is not installed" in line or "won't be merged" in line:
+                merge_failed = True
+            elif "ERROR:" in line:
+                last_error_msg = line_clean
+
+        proc.wait()
+        return proc.returncode, reported_files, already_exists, merge_failed, last_error_msg, all_output_lines
+
+    def _fallback_local_trim_download(self, base_cmd, url, trim_section, ffmpeg_cmd, env, idx, total_urls, is_en):
+        """Respaldo para Windows 7/8.1 cuando FFmpeg falla al verificar TLS directo: descarga con yt-dlp y recorta en local."""
+        tmp_dir = tempfile.mkdtemp(prefix="_ytcli_trim_", dir=self.download_dir)
+        try:
+            self.msg_queue.put((
+                "status",
+                f"[{idx}/{total_urls}] {'Legacy Windows TLS store; downloading & trimming locally...' if is_en else 'TLS heredado detectado; descargando y recortando localmente...'}"
+            ))
+            fb_cmd = []
+            i = 0
+            while i < len(base_cmd):
+                tok = base_cmd[i]
+                if tok == "--download-sections" and i + 1 < len(base_cmd):
+                    i += 2
+                    continue
+                if tok == "-P" and i + 1 < len(base_cmd):
+                    fb_cmd.extend(["-P", tmp_dir])
+                    i += 2
+                    continue
+                fb_cmd.append(tok)
+                i += 1
+            fb_cmd.extend(["--force-overwrites", url])
+
+            rc, rep_files, _, merge_failed, err_msg, out_lines = self._run_ytdlp_download_cmd(fb_cmd, env, idx, total_urls, is_en)
+            if self.is_cancelled:
+                return False, "", err_msg, out_lines
+            if rc != 0 or merge_failed:
+                return False, "", err_msg, out_lines
+
+            src_files = [p for p in rep_files if os.path.isfile(p) and os.path.getsize(p) > 0]
+            if not src_files:
+                for fn in os.listdir(tmp_dir):
+                    if not fn.endswith((".part", ".ytdl", ".tmp")):
+                        cand = os.path.join(tmp_dir, fn)
+                        if os.path.isfile(cand) and os.path.getsize(cand) > 0:
+                            src_files.append(cand)
+            if not src_files:
+                return False, "", err_msg or "Fallback download produced no file", out_lines
+
+            src_path = src_files[-1]
+            dest_path = os.path.join(self.download_dir, os.path.basename(src_path))
+            self.msg_queue.put(("status", f"[{idx}/{total_urls}] {'Trimming local file...' if is_en else 'Recortando archivo localmente...'}"))
+
+            trim_cmd = build_ffmpeg_local_trim_cmd(ffmpeg_cmd, src_path, dest_path, trim_section)
+            ff_proc = subprocess.Popen(
+                trim_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                **SUBPROCESS_FLAGS
+            )
+            self.active_process = ff_proc
+            ff_lines = []
+            while True:
+                line = ff_proc.stdout.readline()
+                if not line:
+                    break
+                ff_lines.append(line)
+            ff_proc.wait()
+            out_lines.extend(ff_lines)
+
+            if self.is_cancelled:
+                return False, "", "", out_lines
+            if ff_proc.returncode != 0 or not os.path.isfile(dest_path) or os.path.getsize(dest_path) == 0:
+                return False, "", f"Local FFmpeg trim failed (code {ff_proc.returncode})", out_lines
+            return True, dest_path, "", out_lines
+        finally:
+            self.active_process = None
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
     def _download_worker(self, urls, mode, quality, fps, audio_format, bitrate, embed_thumb, split_chapters, trim_section, sponsorblock=False, sponsorblock_profile="basic"):
         ytdlp_cmd = get_binary_path("yt-dlp")
         ffmpeg_cmd = get_binary_path("ffmpeg")
@@ -2386,7 +2600,6 @@ class YtCliGUI:
                 clean_e = trim_section.split("-")[1].replace(":", "") if "-" in trim_section else "end"
                 base_cmd += [
                     "--download-sections", f"*{trim_section}",
-                    "--downloader-args", "ffmpeg_i:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
                     "-o", f"%(title)s [{clean_s}_{clean_e}].%(ext)s"
                 ]
             else:
@@ -2460,67 +2673,38 @@ class YtCliGUI:
 
                 dl_start_time = time.time()
                 try:
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding="utf-8",
-                        errors="replace",
-                        env=env,
-                        **SUBPROCESS_FLAGS
+                    rc, reported_files, already_exists, merge_failed, last_error_msg, all_output_lines = self._run_ytdlp_download_cmd(
+                        cmd, env, idx, len(urls), is_en
                     )
-                    self.active_process = proc
-
-                    merge_failed = False
-                    already_exists = False
-                    reported_files = []
-                    all_output_lines = []
-
-                    while True:
-                        line = proc.stdout.readline()
-                        if not line:
-                            break
-                        all_output_lines.append(line)
-                        line_clean = line.strip()
-                        if line_clean.startswith("__YTCLI_FILE__:"):
-                            fpath = line_clean.split("__YTCLI_FILE__:", 1)[1].strip()
-                            if fpath:
-                                reported_files.append(fpath)
-                        elif "[download]" in line and "%" in line:
-                            pct_text = line_clean.replace("[download]", "").strip()
-                            self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {pct_text}"))
-                            m_pct = re.search(r"(\d+(?:\.\d+)?)%", line_clean)
-                            if m_pct:
-                                try:
-                                    self.msg_queue.put(("progress", float(m_pct.group(1))))
-                                except ValueError:
-                                    pass
-                        elif "[info]" in line_clean:
-                            self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {'Preparing download...' if is_en else 'Preparando descarga...'}"))
-                        elif "time=" in line_clean and "bitrate=" in line_clean:
-                            m_t = re.search(r"time=(\S+)", line_clean)
-                            t_str = m_t.group(1) if m_t else ""
-                            self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {'Trimming/processing' if is_en else 'Procesando fragmento'} {t_str}".strip()))
-                        elif "[ExtractAudio]" in line_clean or "[Merger]" in line_clean:
-                            self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {'Converting/merging...' if is_en else 'Convirtiendo/uniendo...'}"))
-                        elif "has already been downloaded" in line:
-                            already_exists = True
-                        elif "ffmpeg is not installed" in line or "won't be merged" in line:
-                            merge_failed = True
-                        elif "ERROR:" in line:
-                            last_error_msg = line_clean
-
-                    proc.wait()
                     if self.is_cancelled:
                         break
 
-                    if proc.returncode != 0:
+                    if rc != 0 and trim_section and any("Peer certificate failed verification" in l for l in all_output_lines):
+                        fb_ok, fb_path, fb_err, fb_lines = self._fallback_local_trim_download(
+                            base_cmd, url, trim_section, ffmpeg_cmd, env, idx, len(urls), is_en
+                        )
+                        all_output_lines.extend(fb_lines)
+                        if self.is_cancelled:
+                            break
+                        if fb_ok and fb_path:
+                            final_filepath = fb_path
+                            if not item_title or item_title == url:
+                                item_title = os.path.splitext(os.path.basename(final_filepath))[0]
+                            item_status = "completed"
+                            break
+                        if fb_err:
+                            last_error_msg = fb_err
+                        rc = 1
+
+                    if rc != 0:
                         has_error = True
                         log_path = self._write_download_log(all_output_lines)
                         if not last_error_msg:
-                            last_error_msg = f"Item {idx} failed (exit code {proc.returncode}). Log: {log_path}" if is_en else f"Error en elemento {idx}. Código: {proc.returncode}. Log: {log_path}"
-                        self.msg_queue.put(("error", last_error_msg))
+                            last_error_msg = f"Item {idx} failed (exit code {rc})." if is_en else f"Error en elemento {idx}. Código: {rc}."
+                        detail_lines = [l.strip() for l in all_output_lines if l.strip() and "[download]" not in l]
+                        tail = "\n".join(detail_lines[-4:])
+                        err_popup = f"{last_error_msg}\n\n{tail}\n\nLog: {log_path}" if tail else f"{last_error_msg}\n\nLog: {log_path}"
+                        self.msg_queue.put(("error", err_popup))
                         break
 
                     if merge_failed:
@@ -2688,10 +2872,17 @@ class YtCliGUI:
                 )
                 self.active_process = proc
 
-                for line in proc.stdout:
+                sub_error_line = ""
+                while True:
+                    line = proc.stdout.readline()
+                    if not line:
+                        break
+                    line_clean = line.strip()
                     if "[info]" in line or "[download]" in line:
-                        clean_line = line.strip().replace("[download]", "").strip()
+                        clean_line = line_clean.replace("[download]", "").strip()
                         self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {clean_line}"))
+                    elif "ERROR:" in line:
+                        sub_error_line = line_clean
 
                 proc.wait()
                 if self.is_cancelled:
@@ -2703,7 +2894,26 @@ class YtCliGUI:
                 ]
                 if proc.returncode != 0 and not recent_srts:
                     has_error = True
-                    last_error_msg = f"Subtitle extraction item {idx} failed (code {proc.returncode})" if is_en else f"Error en elemento {idx} al extraer subtítulos (código {proc.returncode})"
+                    if "429" in sub_error_line:
+                        last_error_msg = (
+                            "YouTube rate-limited subtitle requests (HTTP 429). Try again in a few minutes or enable Cookies."
+                            if is_en else
+                            "YouTube limitó temporalmente las peticiones de subtítulos (HTTP 429). Intenta de nuevo en unos minutos o usa Cookies."
+                        )
+                    elif sub_error_line:
+                        last_error_msg = sub_error_line
+                    else:
+                        last_error_msg = f"Subtitle extraction item {idx} failed (code {proc.returncode})" if is_en else f"Error en elemento {idx} al extraer subtítulos (código {proc.returncode})"
+                    self.msg_queue.put(("error", last_error_msg))
+                    break
+
+                if not recent_srts:
+                    has_error = True
+                    last_error_msg = (
+                        f"No subtitles available in '{self.current_lang}' for item {idx}."
+                        if is_en else
+                        f"No hay subtítulos disponibles en idioma '{self.current_lang}' para el elemento {idx}."
+                    )
                     self.msg_queue.put(("error", last_error_msg))
                     break
 
@@ -2841,6 +3051,22 @@ class YtCliGUI:
                     title_done = "Completed" if is_en else "Completado"
                     msg_done = f"Downloads saved to:\n{self.download_dir}" if is_en else f"Descargas guardadas en:\n{self.download_dir}"
                     messagebox.showinfo(title_done, msg_done)
+                elif msg == "ytdlp_update_done":
+                    ok, out_txt = data
+                    self._updating_ytdlp = False
+                    self._reset_progress_bar(active=False)
+                    if self._btn_update_ytdlp_ref is not None and self._btn_update_ytdlp_ref.winfo_exists():
+                        self._btn_update_ytdlp_ref.config(state=tk.NORMAL)
+                    is_en = self.current_lang != "es"
+                    title_upd = "Update yt-dlp" if is_en else "Actualizar yt-dlp"
+                    if ok:
+                        msg_ok = out_txt or ("yt-dlp is up to date." if is_en else "yt-dlp ya está actualizado.")
+                        self.status_var.set("yt-dlp updated / checked." if is_en else "yt-dlp actualizado / comprobado.")
+                        messagebox.showinfo(title_upd, msg_ok)
+                    else:
+                        msg_err = out_txt or ("Failed to update yt-dlp." if is_en else "No se pudo actualizar yt-dlp.")
+                        self.status_var.set("yt-dlp update failed." if is_en else "Error al actualizar yt-dlp.")
+                        messagebox.showwarning(title_upd, msg_err)
         except queue.Empty:
             pass
         finally:

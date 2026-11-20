@@ -163,6 +163,8 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertIn("--no-quiet", gui_src)
         self.assertIn("def toggle_downloads_view", gui_src)
         self.assertIn("def open_download_dir", gui_src)
+        self.assertIn("def start_ytdlp_update", gui_src)
+        self.assertIn('s["update_ytdlp"]', gui_src)
 
     def test_is_playlist_url(self):
         """is_playlist_url distingue URLs de playlist de vídeos individuales o enlaces ajenos."""
@@ -171,6 +173,20 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertFalse(yt_cli_gui.is_playlist_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL12345"))
         self.assertFalse(yt_cli_gui.is_playlist_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
         self.assertFalse(yt_cli_gui.is_playlist_url("https://example.com/playlist?list=123"))
+
+    def test_build_ffmpeg_local_trim_cmd(self):
+        """build_ffmpeg_local_trim_cmd genera argumentos seguros para recorte local sin TLS."""
+        cmd = yt_cli_gui.build_ffmpeg_local_trim_cmd("ffmpeg.exe", "in.mp4", "out.mp4", "00:01:00-00:02:30")
+        self.assertEqual(
+            cmd,
+            [
+                "ffmpeg.exe", "-y", "-ss", "60", "-t", "90",
+                "-i", "in.mp4", "-map", "0", "-c", "copy",
+                "-avoid_negative_ts", "make_zero", "out.mp4",
+            ],
+        )
+        with self.assertRaises(ValueError):
+            yt_cli_gui.build_ffmpeg_local_trim_cmd("ffmpeg.exe", "in.mp4", "out.mp4", "invalid")
 
 
 if __name__ == "__main__":
