@@ -137,7 +137,8 @@ def load_settings():
     default_lang = "en"
     try:
         import locale
-        sys_loc = (locale.getdefaultlocale()[0] or "").lower().split("_")[0].split("-")[0]
+        loc_val = locale.getlocale()[0] or os.environ.get("LC_ALL") or os.environ.get("LANG") or ""
+        sys_loc = loc_val.lower().split(".")[0].split("_")[0].split("-")[0]
         if sys_loc in supported_codes:
             default_lang = sys_loc
     except Exception:
@@ -581,10 +582,10 @@ class YtCliGUI:
         self.tree.heading("duration", text="Duración ↕", command=lambda: self.sort_tree("duration"))
         self.tree.heading("id", text="ID / Enlace", command=lambda: self.sort_tree("id"))
 
-        self.tree.column("title", width=450, anchor="w")
-        self.tree.column("channel", width=160, anchor="w")
-        self.tree.column("duration", width=85, anchor="center")
-        self.tree.column("id", width=110, anchor="center")
+        self.tree.column("title", width=450, minwidth=220, anchor="w", stretch=True)
+        self.tree.column("channel", width=160, minwidth=110, anchor="w", stretch=True)
+        self.tree.column("duration", width=85, minwidth=70, anchor="center", stretch=False)
+        self.tree.column("id", width=110, minwidth=95, anchor="center", stretch=False)
 
         tree_scroll_y = ttk.Scrollbar(tree_wrapper, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scroll_y.set)
@@ -1107,6 +1108,7 @@ class YtCliGUI:
         env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
+        env["PYTHONUNBUFFERED"] = "1"
 
         search_target = f"ytsearch{limit}:{query}"
         extra_args = []
@@ -1397,7 +1399,7 @@ class YtCliGUI:
 
         help_text = (
             "1. Search & Channel Jump:\n"
-            "   • Type keywords, a YouTube URL, or @channel (e.g. @midudev).\n"
+            "   • Type keywords, a YouTube URL, or @channel (e.g. @kennyw).\n"
             "   • Right-click any result to browse videos from that channel.\n\n"
             "2. Playback Controls:\n"
             "   • Double-click or press Enter on a result to play video.\n"
@@ -1413,7 +1415,7 @@ class YtCliGUI:
             "     official release without reinstalling YT-CLI."
         ) if is_en else (
             "1. Búsqueda y Salto a Canal:\n"
-            "   • Escribe palabras clave, un enlace de YouTube o @canal (ej. @midudev).\n"
+            "   • Escribe palabras clave, un enlace de YouTube o @canal (ej. @kennyw).\n"
             "   • Haz clic derecho sobre cualquier resultado para ver vídeos de ese canal.\n\n"
             "2. Controles de Reproducción:\n"
             "   • Haz doble clic o pulsa Enter sobre un resultado para reproducirlo.\n"
@@ -1553,6 +1555,7 @@ class YtCliGUI:
         env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
+        env["PYTHONUNBUFFERED"] = "1"
 
         # Registrar en historial solo en el lanzamiento inicial (evitar duplicar en reintento seguro)
         if not safe_software:
@@ -1755,6 +1758,13 @@ class YtCliGUI:
         ent_end.insert(0, "00:00:00")
         ent_end.pack(side=tk.LEFT, padx=4)
 
+        def _auto_enable_trim(_event=None):
+            if ent_start.get().strip() not in ("", "00:00", "00:00:00") or ent_end.get().strip() not in ("", "00:00", "00:00:00"):
+                var_trim.set(True)
+
+        ent_start.bind("<KeyRelease>", _auto_enable_trim)
+        ent_end.bind("<KeyRelease>", _auto_enable_trim)
+
         def confirm():
             q = var_q.get()
             fps = var_f.get()
@@ -1873,6 +1883,13 @@ class YtCliGUI:
         ent_end.insert(0, "00:00:00")
         ent_end.pack(side=tk.LEFT, padx=4)
 
+        def _auto_enable_trim(_event=None):
+            if ent_start.get().strip() not in ("", "00:00", "00:00:00") or ent_end.get().strip() not in ("", "00:00", "00:00:00"):
+                var_trim.set(True)
+
+        ent_start.bind("<KeyRelease>", _auto_enable_trim)
+        ent_end.bind("<KeyRelease>", _auto_enable_trim)
+
         def confirm():
             fmt = var_afmt.get().lower()
             br = var_bitrate.get()
@@ -1977,6 +1994,7 @@ class YtCliGUI:
         env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
+        env["PYTHONUNBUFFERED"] = "1"
 
         for idx, url in enumerate(urls, start=1):
             if self.is_cancelled:
@@ -1989,6 +2007,8 @@ class YtCliGUI:
                 ytdlp_cmd,
                 "--encoding", "utf-8",
                 "--newline",
+                "--no-quiet",
+                "--progress",
                 "-c",
                 "--no-mtime",
                 "--no-download-archive",
@@ -2032,9 +2052,10 @@ class YtCliGUI:
                     f"bestvideo[height<={quality}]{fps_filter}+bestaudio/"
                     f"best[height<={quality}]{fps_filter}/best"
                 )
+                sort_spec = f"res:{quality},fps:{fps},vcodec:h264" if fps in ("30", "60") else f"res:{quality},vcodec:h264"
                 base_cmd += [
                     "-f", fmt,
-                    "-S", f"res:{quality},vcodec:h264",
+                    "-S", sort_spec,
                     "--merge-output-format", "mp4",
                     "--ffmpeg-location", ffmpeg_cmd
                 ]
@@ -2097,7 +2118,10 @@ class YtCliGUI:
                     reported_files = []
                     all_output_lines = []
 
-                    for line in proc.stdout:
+                    while True:
+                        line = proc.stdout.readline()
+                        if not line:
+                            break
                         all_output_lines.append(line)
                         line_clean = line.strip()
                         if line_clean.startswith("__YTCLI_FILE__:"):
@@ -2113,6 +2137,14 @@ class YtCliGUI:
                                     self.msg_queue.put(("progress", float(m_pct.group(1))))
                                 except ValueError:
                                     pass
+                        elif "[info]" in line_clean:
+                            self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {'Preparing download...' if is_en else 'Preparando descarga...'}"))
+                        elif "time=" in line_clean and "bitrate=" in line_clean:
+                            m_t = re.search(r"time=(\S+)", line_clean)
+                            t_str = m_t.group(1) if m_t else ""
+                            self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {'Trimming/processing' if is_en else 'Procesando fragmento'} {t_str}".strip()))
+                        elif "[ExtractAudio]" in line_clean or "[Merger]" in line_clean:
+                            self.msg_queue.put(("status", f"[{idx}/{len(urls)}] {'Converting/merging...' if is_en else 'Convirtiendo/uniendo...'}"))
                         elif "has already been downloaded" in line:
                             already_exists = True
                         elif "ffmpeg is not installed" in line or "won't be merged" in line:
@@ -2229,6 +2261,7 @@ class YtCliGUI:
         env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
+        env["PYTHONUNBUFFERED"] = "1"
 
         for idx, url in enumerate(urls, start=1):
             if self.is_cancelled:

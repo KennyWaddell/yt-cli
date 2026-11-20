@@ -157,8 +157,10 @@ class TestYtCliSuite(unittest.TestCase):
             gui_src = f.read()
         self.assertIn('self.tree.bind("<Return>"', gui_src)
         self.assertIn("--convert-thumbnails", gui_src)
-        self.assertIn('f"res:{quality},vcodec:h264"', gui_src)
+        self.assertIn("res:{quality},fps:{fps},vcodec:h264", gui_src)
         self.assertIn("def open_help_dialog", gui_src)
+        self.assertIn("--progress", gui_src)
+        self.assertIn("--no-quiet", gui_src)
 
 
 if __name__ == "__main__":
