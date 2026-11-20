@@ -161,6 +161,16 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertIn("def open_help_dialog", gui_src)
         self.assertIn("--progress", gui_src)
         self.assertIn("--no-quiet", gui_src)
+        self.assertIn("def toggle_downloads_view", gui_src)
+        self.assertIn("def open_download_dir", gui_src)
+
+    def test_is_playlist_url(self):
+        """is_playlist_url distingue URLs de playlist de vídeos individuales o enlaces ajenos."""
+        self.assertTrue(yt_cli_gui.is_playlist_url("https://www.youtube.com/playlist?list=PL12345"))
+        self.assertTrue(yt_cli_gui.is_playlist_url("https://youtube.com/watch?list=PL12345"))
+        self.assertFalse(yt_cli_gui.is_playlist_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL12345"))
+        self.assertFalse(yt_cli_gui.is_playlist_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
+        self.assertFalse(yt_cli_gui.is_playlist_url("https://example.com/playlist?list=123"))
 
 
 if __name__ == "__main__":

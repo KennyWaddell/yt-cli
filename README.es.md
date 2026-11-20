@@ -80,7 +80,7 @@ Si conoces herramientas de terminal como `ytfzf`, te preguntarás en qué se dif
 * 🌐 **Sistema Multilingüe (10 Idiomas):** Internacionalización nativa (`en`, `es`, `zh`, `hi`, `ar`, `pt`, `fr`, `de`, `ru`, `ja`) con autodetección del idioma del sistema, resultados dinámicos (`youtube:lang=...`), selector en tiempo real (`:lang` / menú en GUI) y flag `--lang`.
 * ⏭️ **SponsorBlock integrado:** Salta o elimina segmentos patrocinados al descargar (`-sb` / `--sponsorblock` + `--sb-profile basic|standard|all` en Linux, o selector de perfil en Windows) y opción de marcarlos como capítulos en MPV (`--sb-mark`).
 * 🎞️ **FPS y Fallback flexible:** Selector `30`, `60` o `Auto` FPS (`--fps` en Linux CLI, desplegable en GUI Windows) con fallback limpio de resolución para otras plataformas web.
-* 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz gráfica portable sin instalaciones complejas, con tema oscuro/claro, descargas interactivas, barra de progreso y reproductor de audio dedicado.
+* 🪟 **Cliente Gráfico Portable para Windows (Windows 7 / 8.1 / 10 / 11):** Interfaz gráfica portable sin instalaciones complejas, con tema oscuro/claro, barra de progreso real 0–100%, carga de playlists en tabla, vista de Descargas (reproducir, reanudar, borrar), botón para abrir carpeta de destino, diálogo de Ayuda y reproductor de audio dedicado.
 * 🌐 **Soporte Multiplataforma:** No solo funciona con YouTube; puedes pegar enlaces directos de **TikTok, Twitter/X, Instagram Reels, Twitch, Reddit, SoundCloud y más de 1.000 sitios soportados**.
 * 🔔 **Notificaciones de escritorio:** Alerta nativa no bloqueante al finalizar descargas en segundo plano.
 * 🛡️ **Privacidad y Control:** Sin telemetría ni rastreadores. Historial local opcional y posibilidad de eliminarlo con un solo comando o clic.
@@ -309,6 +309,8 @@ sudo yt-dlp -U
 - [x] Perfiles de categorías SponsorBlock y capítulos `--sponsorblock-mark` en MPV (v1.6).
 - [x] Autocompletado local de canales y acceso rápido al canal desde resultados (v1.6).
 - [x] Atestación criptográfica de procedencia en GitHub Actions + tests de paridad en CI (v1.6).
+- [x] Vista de Descargas en GUI Windows (reproducir, reanudar `.part`, abrir carpeta, borrar) y carga visual de playlists en tabla (v1.7).
+- [x] Barra de progreso real 0–100%, recorte `HH:MM:SS`, botón Abrir carpeta y diálogo de Ayuda integrado (v1.7).
 
 ---
 

@@ -32,11 +32,15 @@ All multimedia engines are pre-packaged inside the "bin/" folder:
   - vulkan-1.dll      (Graphics compatibility runtime)
   - d3dcompiler_43.dll
 
-FEATURES (v1.5)
+FEATURES (v1.7)
 ---------------
-* Smooth video streaming in 360p, 480p, 720p, 1080p, and 60 FPS (GPU Auto-Safe).
-* MP4 video downloads with automatic chapter splitting and time trimming.
+* Smooth video streaming in 360p, 480p, 720p, 1080p, and 60 FPS (D3D11VA/DXVA2 with safe software fallback).
+* Visual playlist loading in the results table: paste a playlist URL and click Search/Enter.
+* Downloads view ("Downloads" button): play completed files, resume stopped/failed ones, open folder, or delete.
+* One-click "Open" button next to Browse to open your destination folder directly.
+* MP4 video downloads with automatic chapter splitting and HH:MM:SS time trimming.
 * Modern native audio formats: MP3 (320k/192k/128k), M4A, Opus, and FLAC with cover art.
+* Live 0-100% progress bar, built-in Help guide, and Enter key playback shortcut.
 * Optional SponsorBlock integration to skip sponsored segments on download.
 * Multilingual interface (10 languages) with dynamic YouTube search localization.
 * Subtitle and plain-text transcript extractor (.txt and .srt).
@@ -95,11 +99,15 @@ Todos los motores multimedia ya vienen incluidos dentro de la carpeta "bin/":
   - vulkan-1.dll      (Libreria de compatibilidad grafica)
   - d3dcompiler_43.dll
 
-CARACTERISTICAS (v1.5)
+CARACTERISTICAS (v1.7)
 ----------------------
-* Streaming fluido en 360p, 480p, 720p, 1080p y 60 FPS (GPU Auto-Safe).
-* Descargas MP4 (con division en capitulos y recorte por tiempo).
+* Streaming fluido en 360p, 480p, 720p, 1080p y 60 FPS (D3D11VA/DXVA2 con respaldo seguro a software).
+* Carga visual de playlists en la tabla: pega una URL de playlist y pulsa Buscar o Enter.
+* Vista de Descargas (boton "Descargas"): reproduce archivos terminados, reanuda interrumpidos, abre carpeta o elimina.
+* Boton "Abrir" junto a Examinar para abrir la carpeta de destino en un clic.
+* Descargas MP4 (con division en capitulos y recorte por tiempo HH:MM:SS).
 * Audio multiformato nativo: MP3 (320k/192k/128k), M4A, Opus y FLAC con caratula.
+* Barra de progreso real 0-100%, dialogo de Ayuda integrado y reproduccion con tecla Enter.
 * Integracion opcional con SponsorBlock para saltar patrocinadores al descargar.
 * Interfaz multilingue (10 idiomas) con resultados de busqueda localizados.
 * Extraccion de subtitulos y transcripciones limpias en texto plano (.txt y .srt).
