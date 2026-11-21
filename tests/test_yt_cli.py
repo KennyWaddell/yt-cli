@@ -174,6 +174,23 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertNotIn("dialog.grab_set()", gui_src)
         self.assertIn("--dither=no", gui_src)
         self.assertIn("--log-file=", gui_src)
+        self.assertIn("override_urls", gui_src)
+        self.assertIn("timeout=3", gui_src)
+        self.assertNotIn('self.current_lang == "en"', gui_src)
+
+        with open(os.path.join(WINDOWS_DIR, "setup_binaries.py"), "r", encoding="utf-8") as f:
+            setup_src = f.read()
+        self.assertNotIn("_create_unverified_context", setup_src)
+        self.assertIn("create_default_context", setup_src)
+
+    def test_terminate_process_tree_fallback(self):
+        """terminate_process_tree intenta matar el proceso y usa terminate() si sigue vivo."""
+        proc = mock.MagicMock()
+        proc.pid = 4242
+        proc.poll.return_value = None
+        with mock.patch.object(yt_cli_gui.subprocess, "run", side_effect=subprocess.TimeoutExpired("taskkill", 3)):
+            yt_cli_gui.terminate_process_tree(proc)
+        proc.terminate.assert_called_once()
 
     def test_format_ytdlp_error(self):
         """format_ytdlp_error traduce bloqueos DPAPI de Chromium y HTTP 429 con guía clara."""

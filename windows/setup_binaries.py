@@ -37,9 +37,8 @@ def download_file(url, dest_path, label):
 
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     req = urllib.request.Request(url, headers=headers)
-    ctx = getattr(ssl, "_create_unverified_context", None)
-    context_arg = {"context": ctx()} if ctx else {}
-    with urllib.request.urlopen(req, timeout=120, **context_arg) as resp, open(dest_path, "wb") as out:
+    ctx = ssl.create_default_context()
+    with urllib.request.urlopen(req, timeout=120, context=ctx) as resp, open(dest_path, "wb") as out:
         total = int(resp.headers.get("Content-Length") or 0)
         downloaded = 0
         chunk_size = 65536

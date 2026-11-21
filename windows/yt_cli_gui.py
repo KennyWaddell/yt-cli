@@ -257,6 +257,7 @@ def terminate_process_tree(proc):
                 ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                timeout=3,
                 **SUBPROCESS_FLAGS
             )
         except Exception:
@@ -1686,7 +1687,7 @@ class YtCliGUI:
         lbl_title = tk.Label(dialog, text="YT-CLI v1.7", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl_title.pack(pady=(14, 2))
 
-        is_en = self.current_lang == "en"
+        is_en = self.current_lang != "es"
         desc_txt = (
             "Ultralight high-performance multimedia client\nfor resource-constrained and modern systems."
             if is_en else
@@ -1923,7 +1924,7 @@ class YtCliGUI:
         btn_box = tk.Frame(dialog, bg=pal["card_bg"])
         btn_box.pack(fill=tk.X, padx=20, pady=(6, 0))
 
-        is_en = self.current_lang == "en"
+        is_en = self.current_lang != "es"
         btn_clear = tk.Button(btn_box, text="Clear History" if is_en else "Borrar Historial", command=clear_all, font=("sans-serif", 8), bg="#7f1d1d", fg="#ffffff", relief="flat", padx=10, pady=3, cursor="hand2")
         btn_clear.pack(side=tk.LEFT)
 
@@ -1971,9 +1972,11 @@ class YtCliGUI:
             err = f"Could not run yt-dlp update: {exc}" if is_en else f"No se pudo actualizar yt-dlp: {exc}"
             self.msg_queue.put(("ytdlp_update_done", (False, err)))
 
-    def play_selected(self, audio_only=False, safe_software=False):
-        is_en = self.current_lang == "en"
-        if self.is_viewing_downloads:
+    def play_selected(self, audio_only=False, safe_software=False, override_urls=None):
+        is_en = self.current_lang != "es"
+        if override_urls is not None:
+            urls = list(override_urls)
+        elif self.is_viewing_downloads:
             entry = self._get_selected_download_entry()
             if not entry:
                 messagebox.showinfo("Play" if is_en else "Reproducir", "Select a download from the list." if is_en else "Selecciona una descarga de la lista.")
@@ -2008,7 +2011,7 @@ class YtCliGUI:
         env["PYTHONUNBUFFERED"] = "1"
 
         # Registrar en historial solo en el lanzamiento inicial desde búsqueda/historial
-        if not safe_software and not self.is_viewing_downloads:
+        if not safe_software and not self.is_viewing_downloads and override_urls is None:
             selected_ids = self.tree.selection()
             for item_id in selected_ids:
                 vals = self.tree.item(item_id, "values")
@@ -2019,7 +2022,8 @@ class YtCliGUI:
         terminate_process_tree(self.mpv_process)
 
         # Notificación visual y activación de la barra de progreso
-        self.prog_bar.start(10)
+        if not self._is_downloading:
+            self.prog_bar.start(10)
         self.btn_cancel.config(state=tk.NORMAL)
         if safe_software:
             self.status_var.set(
@@ -2116,11 +2120,12 @@ class YtCliGUI:
                 poll_code = proc.poll()
                 if poll_code is not None:
                     self.mpv_process = None
-                    self.prog_bar.stop()
-                    self.btn_cancel.config(state=tk.DISABLED)
+                    if not self._is_downloading:
+                        self.prog_bar.stop()
+                        self.btn_cancel.config(state=tk.DISABLED)
                     if poll_code != 0:
                         if IS_WINDOWS and not audio_only and not safe_software and (poll_code < 0 or poll_code > 4):
-                            self.play_selected(audio_only=False, safe_software=True)
+                            self.play_selected(audio_only=False, safe_software=True, override_urls=urls)
                             return
                         log_txt = _read_mpv_log()
                         err_lines = [
@@ -2145,7 +2150,8 @@ class YtCliGUI:
                 if not shown_playing:
                     log_txt = _read_mpv_log()
                     if any(tok in log_txt for tok in ("Starting playback...", "VO: [", "AO: [")):
-                        self.prog_bar.stop()
+                        if not self._is_downloading:
+                            self.prog_bar.stop()
                         shown_playing = True
                         if audio_only:
                             self.status_var.set(
@@ -2252,7 +2258,7 @@ class YtCliGUI:
     def prompt_video_download(self):
         urls = self.get_selected_urls()
         if not urls:
-            is_en = self.current_lang == "en"
+            is_en = self.current_lang != "es"
             msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
             title = "Download Video" if is_en else "Descargar Vídeo"
             messagebox.showinfo(title, msg)
@@ -2337,7 +2343,7 @@ class YtCliGUI:
     def prompt_audio_download(self):
         urls = self.get_selected_urls()
         if not urls:
-            is_en = self.current_lang == "en"
+            is_en = self.current_lang != "es"
             msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
             title = "Download Audio" if is_en else "Descarga de Audio"
             messagebox.showinfo(title, msg)
@@ -2901,7 +2907,7 @@ class YtCliGUI:
             self.msg_queue.put(("download_done", None))
 
     def start_subtitles_download(self):
-        is_en = self.current_lang == "en"
+        is_en = self.current_lang != "es"
         if self._is_downloading:
             messagebox.showinfo(
                 "Subtitles" if is_en else "Subtítulos",
@@ -2924,7 +2930,7 @@ class YtCliGUI:
         self.btn_extract_subs.config(state=tk.DISABLED)
         self.btn_cancel.config(state=tk.NORMAL)
         self.prog_bar.start(10)
-        is_en = self.current_lang == "en"
+        is_en = self.current_lang != "es"
         msg = f"Extracting subtitles/transcripts ({len(urls)} items)..." if is_en else f"Extrayendo subtítulos y transcripción ({len(urls)} elemento(s))..."
         self.status_var.set(msg)
 
@@ -2939,7 +2945,7 @@ class YtCliGUI:
         ytdlp_cmd = get_binary_path("yt-dlp")
         ffmpeg_cmd = get_binary_path("ffmpeg")
         bin_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-        is_en = self.current_lang == "en"
+        is_en = self.current_lang != "es"
         has_error = False
         last_error_msg = ""
 
@@ -3155,7 +3161,7 @@ class YtCliGUI:
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
-                    is_en = self.current_lang == "en"
+                    is_en = self.current_lang != "es"
                     self.status_var.set("Download cancelled by user." if is_en else "Descarga cancelada por el usuario.")
                 elif msg == "download_error":
                     self._is_downloading = False
@@ -3164,7 +3170,7 @@ class YtCliGUI:
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
-                    is_en = self.current_lang == "en"
+                    is_en = self.current_lang != "es"
                     self.status_var.set("Operation finished with errors." if is_en else "Operación finalizada con errores.")
                 elif msg == "download_done":
                     self._is_downloading = False
@@ -3173,7 +3179,7 @@ class YtCliGUI:
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
-                    is_en = self.current_lang == "en"
+                    is_en = self.current_lang != "es"
                     self.status_var.set("Downloads finished!" if is_en else "¡Descargas finalizadas!")
                     title_done = "Completed" if is_en else "Completado"
                     msg_done = f"Downloads saved to:\n{self.download_dir}" if is_en else f"Descargas guardadas en:\n{self.download_dir}"
