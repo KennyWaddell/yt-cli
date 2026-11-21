@@ -36,7 +36,7 @@ FEATURES (v1.7)
 ---------------
 * Smooth video streaming in 360p, 480p, 720p, 1080p, and 60 FPS (D3D11VA/DXVA2 with safe software fallback).
 * Visual playlist loading in the results table: paste a playlist URL and click Search/Enter.
-* Downloads view ("Downloads" button): play completed files, resume stopped/failed ones, open folder, or delete.
+* Downloads view ("Downloads" button): play completed files, resume stopped/failed ones, clear list, open folder, or delete.
 * One-click "Open" button next to Browse to open your destination folder directly.
 * MP4 video downloads with automatic chapter splitting and HH:MM:SS time trimming.
 * Modern native audio formats: MP3 (320k/192k/128k), M4A, Opus, and FLAC with cover art.
@@ -45,7 +45,7 @@ FEATURES (v1.7)
 * Multilingual interface (10 languages) with dynamic YouTube search localization.
 * Subtitle and plain-text transcript extractor (.txt and .srt).
 * Private local watch history with auto-resume and quick item deletion.
-* Session cookie support for Brave, Chrome, Firefox, and Edge.
+* Session cookie support for Firefox (recommended on Windows), Brave, Chrome, and Edge (Chromium browsers may block DPAPI decryption).
 * Dynamic Dark and Light themes.
 * Ultralow memory footprint (~22 MB RAM).
 
@@ -104,7 +104,7 @@ CARACTERISTICAS (v1.7)
 ----------------------
 * Streaming fluido en 360p, 480p, 720p, 1080p y 60 FPS (D3D11VA/DXVA2 con respaldo seguro a software).
 * Carga visual de playlists en la tabla: pega una URL de playlist y pulsa Buscar o Enter.
-* Vista de Descargas (boton "Descargas"): reproduce archivos terminados, reanuda interrumpidos, abre carpeta o elimina.
+* Vista de Descargas (boton "Descargas"): reproduce archivos terminados, reanuda interrumpidos, limpia la lista, abre carpeta o elimina.
 * Boton "Abrir" junto a Examinar para abrir la carpeta de destino en un clic.
 * Descargas MP4 (con division en capitulos y recorte por tiempo HH:MM:SS).
 * Audio multiformato nativo: MP3 (320k/192k/128k), M4A, Opus y FLAC con caratula.
@@ -113,7 +113,7 @@ CARACTERISTICAS (v1.7)
 * Interfaz multilingue (10 idiomas) con resultados de busqueda localizados.
 * Extraccion de subtitulos y transcripciones limpias en texto plano (.txt y .srt).
 * Historial local privado con reanudacion automatica y borrado individual.
-* Soporte para cookies de sesion de Brave, Chrome, Firefox y Edge.
+* Soporte para cookies de sesion de Firefox (recomendado en Windows), Brave, Chrome y Edge (Chromium moderno puede bloquear DPAPI).
 * Modos visuales Tema Oscuro y Tema Claro.
 * Consumo ultrabajo de memoria RAM (~22 MB).
 
