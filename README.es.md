@@ -18,7 +18,11 @@
 </p>
 <p align="center">
   <img src="assets/windows-ltsb-benchmark.png" alt="YT-CLI GUI en Windows + MPV acelerado por hardware en Celeron con 2 GB RAM" width="750"><br>
-  <sub><i>Windows 10 LTSB 2016 en Intel Celeron N2805 (1.45 GHz, 2 GB DDR3): 720p H.264 por <code>d3d11va</code>, 0 frames perdidos, 888 MB de RAM total en uso en todo el sistema.</i></sub>
+  <sub><i><b>YT-CLI + MPV</b> (Windows 10 LTSB 2016 en Intel Celeron N2805, 1,45 GHz, 2 GB DDR3): 720p@30fps H.264 por <code>d3d11va</code> — <b>52% CPU</b>, <b>888 MB</b> de RAM total (+191 MB sobre los 697 MB en reposo), <b>0 frames perdidos</b>.</i></sub>
+</p>
+<p align="center">
+  <img src="assets/brave-youtube-benchmark.jpg" alt="Brave + YouTube 720p30 VP9 en el mismo Celeron con 2 GB RAM" width="750"><br>
+  <sub><i><b>Mismo equipo con Brave + YouTube</b> (720p@30fps VP9): <b>90% CPU</b>, <b>1,3 GB (84%)</b> de RAM total, <b>469 de 1.813 frames perdidos</b>.</i></sub>
 </p>
 
 ---
