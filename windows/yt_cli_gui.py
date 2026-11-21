@@ -368,6 +368,30 @@ def build_ffmpeg_local_trim_cmd(ffmpeg_cmd, src_path, dest_path, trim_section):
         dest_path,
     ]
 
+
+def format_ytdlp_error(raw_msg, is_en=False):
+    """Traduce errores técnicos frecuentes de yt-dlp (DPAPI/cookies, HTTP 429) a guías claras."""
+    msg = (raw_msg or "").strip()
+    low = msg.lower()
+    if "failed to decrypt with dpapi" in low or "yt-dlp/issues/10927" in low or "could not copy chrome cookie database" in low:
+        tip = (
+            "Brave/Chrome/Edge blocked cookie decryption on Windows (App-Bound Encryption).\n"
+            "Set Cookies to 'None' or use Firefox."
+            if is_en else
+            "Brave/Chrome/Edge bloquearon el descifrado de cookies en Windows (DPAPI / App-Bound Encryption).\n"
+            "Cambia Cookies a 'Ninguna' o usa Firefox."
+        )
+        return f"{tip}\n\n{msg}" if msg else tip
+    if "http error 429" in low or "too many requests" in low:
+        tip = (
+            "YouTube temporarily rate-limited requests (HTTP 429). Wait a few minutes or switch Cookies (e.g. Firefox)."
+            if is_en else
+            "YouTube limitó temporalmente las peticiones (HTTP 429). Espera unos minutos o prueba Cookies de Firefox."
+        )
+        return f"{tip}\n\n{msg}" if msg else tip
+    return msg
+
+
 class YtCliGUI:
     def __init__(self, root):
         self.root = root
@@ -384,6 +408,7 @@ class YtCliGUI:
         self._channel_popup = None
         self._updating_ytdlp = False
         self._btn_update_ytdlp_ref = None
+        self._active_child_dialog = None
 
         self.msg_queue = queue.Queue()
         self.active_process = None
@@ -1594,7 +1619,8 @@ class YtCliGUI:
             entry = self._download_entry_map.get(row_id, {})
             fpath = entry.get("filepath", "")
             if fpath and os.path.isfile(fpath):
-                menu.add_command(label=s["play_video"], command=lambda: self.play_selected(audio_only=(entry.get("mode") == "audio")))
+                play_lbl = s["play_audio"] if entry.get("mode") == "audio" else s["play_video"]
+                menu.add_command(label=play_lbl, command=lambda: self.play_selected(audio_only=(entry.get("mode") == "audio")))
             menu.add_command(label=s["dl_resume"], command=self.resume_selected_download)
             menu.add_command(label=s["open_folder"], command=self.open_selected_download_folder)
             menu.add_separator()
@@ -1618,13 +1644,26 @@ class YtCliGUI:
         elif self.is_viewing_downloads:
             self.remove_selected_downloads(delete_disk=False)
 
+    def _register_child_dialog(self, dialog):
+        """Muestra el diálogo encima sin grab_set() para no bloquear la ventana al dividir pantalla."""
+        prev = getattr(self, "_active_child_dialog", None)
+        if prev is not None and prev is not dialog:
+            try:
+                if prev.winfo_exists():
+                    prev.destroy()
+            except Exception:
+                pass
+        self._active_child_dialog = dialog
+        dialog.transient(self.root)
+        dialog.lift()
+        dialog.focus_force()
+
     def open_about_dialog(self):
         dialog = tk.Toplevel(self.root)
         dialog.title("Acerca de YT-CLI")
         dialog.geometry("440x300")
         dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
+        self._register_child_dialog(dialog)
 
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
@@ -1700,8 +1739,7 @@ class YtCliGUI:
         dialog.title("YT-CLI Help" if is_en else "Ayuda de YT-CLI")
         dialog.geometry("520x420")
         dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
+        self._register_child_dialog(dialog)
 
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
@@ -1791,8 +1829,7 @@ class YtCliGUI:
         dialog.title("Opciones" if self.current_lang == "es" else "Options")
         dialog.geometry("410x295")
         dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
+        self._register_child_dialog(dialog)
 
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
@@ -1979,11 +2016,14 @@ class YtCliGUI:
         else:
             self.status_var.set("⏳ Cargando buffer de YouTube... el reproductor abrirá automáticamente en ~10-15s")
 
+        mpv_log_path = os.path.join(get_config_dir(), "last_mpv.log")
+
         # Base de comando con reanudación automática (save-position-on-quit) y buffer optimizado
         cmd = [
             mpv_cmd,
             "--save-position-on-quit",
             "--watch-later-options=start",
+            f"--log-file={mpv_log_path}",
             f"--script-opts=ytdl_hook-ytdl_path={clean_ytdlp}",
             f"--ytdl-raw-options=extractor-args=youtube:lang={self.current_lang}",
             "--demuxer-readahead-secs=5",
@@ -2031,15 +2071,31 @@ class YtCliGUI:
                 hwdec_opt,
                 f"--ytdl-format={fmt}"
             ]
+            if IS_WINDOWS:
+                cmd.append("--dither=no")
 
         cmd += urls
 
+        def _read_mpv_log():
+            try:
+                if os.path.isfile(mpv_log_path):
+                    with open(mpv_log_path, "r", encoding="utf-8", errors="replace") as lf:
+                        return lf.read()
+            except Exception:
+                pass
+            return ""
+
         try:
+            try:
+                if os.path.isfile(mpv_log_path):
+                    os.remove(mpv_log_path)
+            except OSError:
+                pass
             proc = subprocess.Popen(cmd, env=env)
             self.mpv_process = proc
 
             # Monitoreo continuo del proceso mpv mientras esté activo
-            def monitor_mpv(elapsed=0, shown_playing=False):
+            def monitor_mpv(shown_playing=False):
                 if self.mpv_process is not proc:
                     return
                 poll_code = proc.poll()
@@ -2051,29 +2107,45 @@ class YtCliGUI:
                         if IS_WINDOWS and not audio_only and not safe_software and (poll_code < 0 or poll_code > 4):
                             self.play_selected(audio_only=False, safe_software=True)
                             return
-                        err_text = f"Player closed unexpectedly (exit code {poll_code})." if is_en else f"El reproductor se cerró inesperadamente (código {poll_code})."
-                        self.status_var.set(err_text)
+                        log_txt = _read_mpv_log()
+                        err_lines = [
+                            ln.strip() for ln in log_txt.splitlines()
+                            if "ERROR:" in ln or "[e][" in ln or "Failed to decrypt with DPAPI" in ln
+                        ]
+                        raw_detail = err_lines[-1] if err_lines else ""
+                        friendly = format_ytdlp_error(raw_detail, is_en=is_en) if raw_detail else ""
+                        if friendly and friendly != raw_detail:
+                            self.status_var.set(friendly.splitlines()[0])
+                            messagebox.showwarning("YT-CLI", friendly)
+                        elif raw_detail:
+                            err_text = f"Player closed (code {poll_code}): {raw_detail}" if is_en else f"El reproductor cerró (código {poll_code}): {raw_detail}"
+                            self.status_var.set(err_text)
+                        else:
+                            err_text = f"Player closed unexpectedly (exit code {poll_code})." if is_en else f"El reproductor se cerró inesperadamente (código {poll_code})."
+                            self.status_var.set(err_text)
                     else:
                         self.status_var.set("Ready." if is_en else "Listo.")
                     return
 
-                if not shown_playing and elapsed >= 8:
-                    self.prog_bar.stop()
-                    shown_playing = True
-                    if audio_only:
-                        self.status_var.set(
-                            "♫ Playing. Controls: Space (Pause), Arrows (Seek), 9/0 (Volume), L (Loop)" if is_en
-                            else "♫ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), 9/0 (Volumen), L (Bucle)"
-                        )
-                    else:
-                        self.status_var.set(
-                            "▶ Playing. Controls: Space (Pause), Arrows (Seek), F (Fullscreen)" if is_en
-                            else "▶ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), F (Pantalla completa)"
-                        )
+                if not shown_playing:
+                    log_txt = _read_mpv_log()
+                    if any(tok in log_txt for tok in ("Starting playback...", "VO: [", "AO: [")):
+                        self.prog_bar.stop()
+                        shown_playing = True
+                        if audio_only:
+                            self.status_var.set(
+                                "♫ Playing. Controls: Space (Pause), Arrows (Seek), 9/0 (Volume), L (Loop)" if is_en
+                                else "♫ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), 9/0 (Volumen), L (Bucle)"
+                            )
+                        else:
+                            self.status_var.set(
+                                "▶ Playing. Controls: Space (Pause), Arrows (Seek), F (Fullscreen)" if is_en
+                                else "▶ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), F (Pantalla completa)"
+                            )
 
-                self.root.after(1500, lambda: monitor_mpv(elapsed + 1.5, shown_playing))
+                self.root.after(1200, lambda: monitor_mpv(shown_playing))
 
-            self.root.after(1000, lambda: monitor_mpv(1, False))
+            self.root.after(1000, lambda: monitor_mpv(False))
         except FileNotFoundError:
             self.prog_bar.stop()
             self.btn_cancel.config(state=tk.DISABLED)
@@ -2177,8 +2249,7 @@ class YtCliGUI:
         dialog.title("Video Download Options (MP4)" if is_en else "Opciones de Descarga de Vídeo (MP4)")
         dialog.geometry("440x475")
         dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
+        self._register_child_dialog(dialog)
 
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
@@ -2263,8 +2334,7 @@ class YtCliGUI:
         dialog.title("Audio Download Options" if is_en else "Opciones de Descarga de Audio")
         dialog.geometry("440x520")
         dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
+        self._register_child_dialog(dialog)
 
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
@@ -2717,6 +2787,7 @@ class YtCliGUI:
                         log_path = self._write_download_log(all_output_lines)
                         if not last_error_msg:
                             last_error_msg = f"Item {idx} failed (exit code {rc})." if is_en else f"Error en elemento {idx}. Código: {rc}."
+                        last_error_msg = format_ytdlp_error(last_error_msg, is_en=is_en)
                         detail_lines = [l.strip() for l in all_output_lines if l.strip() and "[download]" not in l]
                         tail = "\n".join(detail_lines[-4:])
                         err_popup = f"{last_error_msg}\n\n{tail}\n\nLog: {log_path}" if tail else f"{last_error_msg}\n\nLog: {log_path}"
@@ -2910,14 +2981,8 @@ class YtCliGUI:
                 ]
                 if proc.returncode != 0 and not recent_srts:
                     has_error = True
-                    if "429" in sub_error_line:
-                        last_error_msg = (
-                            "YouTube rate-limited subtitle requests (HTTP 429). Try again in a few minutes or enable Cookies."
-                            if is_en else
-                            "YouTube limitó temporalmente las peticiones de subtítulos (HTTP 429). Intenta de nuevo en unos minutos o usa Cookies."
-                        )
-                    elif sub_error_line:
-                        last_error_msg = sub_error_line
+                    if sub_error_line:
+                        last_error_msg = format_ytdlp_error(sub_error_line, is_en=is_en)
                     else:
                         last_error_msg = f"Subtitle extraction item {idx} failed (code {proc.returncode})" if is_en else f"Error en elemento {idx} al extraer subtítulos (código {proc.returncode})"
                     self.msg_queue.put(("error", last_error_msg))

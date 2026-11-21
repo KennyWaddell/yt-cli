@@ -167,6 +167,21 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertIn('s["update_ytdlp"]', gui_src)
         self.assertIn("def clear_downloads_from_view", gui_src)
         self.assertIn('s["dl_clear_all"]', gui_src)
+        self.assertNotIn("dialog.grab_set()", gui_src)
+        self.assertIn("--dither=no", gui_src)
+        self.assertIn("--log-file=", gui_src)
+
+    def test_format_ytdlp_error(self):
+        """format_ytdlp_error traduce bloqueos DPAPI de Chromium y HTTP 429 con guía clara."""
+        dpapi = yt_cli_gui.format_ytdlp_error(
+            "ERROR: Failed to decrypt with DPAPI. See https://github.com/yt-dlp/yt-dlp/issues/10927",
+            is_en=False,
+        )
+        self.assertIn("Firefox", dpapi)
+        self.assertIn("App-Bound Encryption", dpapi)
+        err429 = yt_cli_gui.format_ytdlp_error("ERROR: HTTP Error 429: Too Many Requests", is_en=True)
+        self.assertIn("429", err429)
+        self.assertEqual(yt_cli_gui.format_ytdlp_error("plain error", is_en=False), "plain error")
 
     def test_is_playlist_url(self):
         """is_playlist_url distingue URLs de playlist de vídeos individuales o enlaces ajenos."""
