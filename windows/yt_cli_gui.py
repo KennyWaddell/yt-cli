@@ -438,12 +438,11 @@ class YtCliGUI:
         self._placeholder_active = False
 
         user_home = os.path.expanduser("~")
-        if IS_WINDOWS:
-            self.download_dir = os.path.join(user_home, "Downloads")
-        else:
-            self.download_dir = os.path.join(user_home, "Descargas")
-        if not os.path.exists(self.download_dir):
-            self.download_dir = user_home
+        default_dl = os.path.join(user_home, "Downloads" if IS_WINDOWS else "Descargas")
+        if not os.path.exists(default_dl):
+            default_dl = user_home
+        saved_dl = settings.get("download_dir", "")
+        self.download_dir = saved_dl if (saved_dl and os.path.isdir(saved_dl)) else default_dl
 
         self.setup_ui()
         self.apply_theme(self.current_theme)
@@ -1215,6 +1214,9 @@ class YtCliGUI:
         if chosen:
             self.download_dir = chosen
             self.lbl_dest_path.config(text=chosen)
+            settings = load_settings()
+            settings["download_dir"] = chosen
+            save_settings(settings)
 
     def open_download_dir(self, target_dir=None):
         """Abre la carpeta de descargas en el explorador de archivos del sistema."""

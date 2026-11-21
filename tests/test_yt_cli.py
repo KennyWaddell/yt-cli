@@ -198,6 +198,21 @@ class TestYtCliSuite(unittest.TestCase):
             yt_cli_gui.terminate_process_tree(proc)
         proc.terminate.assert_called_once()
 
+    def test_download_dir_persistence(self):
+        """browse_folder guarda download_dir en settings.json para recordarlo al reiniciar."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cfg_file = os.path.join(tmpdir, "settings.json")
+            chosen_dir = os.path.join(tmpdir, "MisVideos")
+            os.makedirs(chosen_dir, exist_ok=True)
+            stub = self._make_worker_stub(tmpdir)
+            stub.lbl_dest_path = mock.MagicMock()
+            with mock.patch.object(yt_cli_gui, "get_settings_file", return_value=cfg_file), \
+                    mock.patch.object(yt_cli_gui.filedialog, "askdirectory", return_value=chosen_dir):
+                stub.browse_folder()
+                loaded = yt_cli_gui.load_settings()
+            self.assertEqual(stub.download_dir, chosen_dir)
+            self.assertEqual(loaded.get("download_dir"), chosen_dir)
+
     def test_format_ytdlp_error(self):
         """format_ytdlp_error traduce bloqueos DPAPI de Chromium y HTTP 429 con guía clara."""
         dpapi = yt_cli_gui.format_ytdlp_error(

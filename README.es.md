@@ -16,6 +16,10 @@
 <p align="center">
   <img src="assets/YT-CLITerminal.png" alt="Interfaz de terminal de YT-CLI" width="750">
 </p>
+<p align="center">
+  <img src="assets/windows-ltsb-benchmark.png" alt="YT-CLI GUI en Windows + MPV acelerado por hardware en Celeron con 2 GB RAM" width="750"><br>
+  <sub><i>Windows 10 LTSB 2016 en Intel Celeron N2805 (1.45 GHz, 2 GB DDR3): 720p H.264 por <code>d3d11va</code>, 0 frames perdidos, 888 MB de RAM total en uso en todo el sistema.</i></sub>
+</p>
 
 ---
 
