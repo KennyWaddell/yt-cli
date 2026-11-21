@@ -200,8 +200,17 @@ set_language() {
         echo -e "${C_CYAN}${MSG_LANG_CHOOSE:-Select language / Selecciona idioma:}${C_RESET}"
         local -a codes=()
         local i=1
+        local -a ordered_files=()
+        [ -f "${LANG_DIR}/en.sh" ] && ordered_files+=("${LANG_DIR}/en.sh")
+        [ -f "${LANG_DIR}/es.sh" ] && ordered_files+=("${LANG_DIR}/es.sh")
         for f in "${LANG_DIR}"/*.sh; do
             [ -f "$f" ] || continue
+            local b_name
+            b_name="$(basename "$f")"
+            [[ "$b_name" == "en.sh" || "$b_name" == "es.sh" ]] && continue
+            ordered_files+=("$f")
+        done
+        for f in "${ordered_files[@]}"; do
             local c_code
             c_code="$(basename "$f" .sh)"
             local c_name
@@ -751,7 +760,7 @@ download_videos() {
     echo -e "${C_CYAN}${MSG_DL_VIDEO_START} ${height}p (H.264 / continue)...${C_RESET}"
     echo -e "${C_GRAY}${MSG_DL_SAVING_IN} ${dest_dir}/${C_RESET}\n"
 
-    local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio/best[height<=${height}]/best"
+    local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=${height}]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best"
 
     local has_error=0
     for t in "${targets[@]}"; do
@@ -979,7 +988,7 @@ download_chapters() {
             fi
         else
             local height="$format_type"
-            local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio/best[height<=${height}]/best"
+            local ytdl_fmt="bestvideo[vcodec^=avc1][height<=${height}][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=${height}]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best"
             if ! "$BIN_YTDLP" \
                 ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
                 ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
@@ -1108,7 +1117,7 @@ download_section() {
                 fi
                 ;;
             2|1080)
-                local ytdl_fmt="bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio/best[height<=1080]/best"
+                local ytdl_fmt="bestvideo[vcodec^=avc1][height<=1080][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
                 if ! "$BIN_YTDLP" \
                     ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
                     ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
@@ -1125,7 +1134,7 @@ download_section() {
                 fi
                 ;;
             *)
-                local ytdl_fmt="bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio/best[height<=720]/best"
+                local ytdl_fmt="bestvideo[vcodec^=avc1][height<=720][fps<=30]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1][height<=720]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best"
                 if ! "$BIN_YTDLP" \
                     ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
                     ${EXTRA_YTDL_ARGS[@]+"${EXTRA_YTDL_ARGS[@]}"} \
@@ -1378,7 +1387,7 @@ show_banner() {
     echo -e "${C_CYAN}    ╚██╔╝     ██║  ╚════╝██║     ██║     ██║${C_RESET}"
     echo -e "${C_CYAN}     ██║      ██║        ╚██████╗███████╗██║${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}"
-    echo -e "  ${C_BOLD}${MSG_BANNER_CREDITS:-YT-CLI v1.4 • Creado por Kenny Waddell (@KennyWaddell)}${C_RESET}"
+    echo -e "  ${C_BOLD}${MSG_BANNER_CREDITS:-YT-CLI v1.7 • Creado por Kenny Waddell (@KennyWaddell)}${C_RESET}"
     echo -e "  ${C_GRAY}${MSG_BANNER_SUBTITLE:-Cliente Multimedia: YouTube, TikTok, X, Reels y +1000 sitios}${C_RESET}"
     echo -e "  ${C_GRAY}${MSG_BANNER_FEATURES:-Aceleración HWDEC Auto • Cola FZF • Descargas MP4/MP3}${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}"
@@ -1433,7 +1442,7 @@ show_about() {
     echo -e "${C_CYAN}================================================================${C_RESET}"
     echo -e "${C_BOLD}                   ${MSG_ABOUT_TITLE:-ACERCA DE YT-CLI / CRÉDITOS}${C_RESET}"
     echo -e "${C_CYAN}================================================================${C_RESET}\n"
-    echo -e "  ${C_YELLOW}${MSG_ABOUT_VERSION:-Versión:}${C_RESET}      ${C_BOLD}v1.4${C_RESET}"
+    echo -e "  ${C_YELLOW}${MSG_ABOUT_VERSION:-Versión:}${C_RESET}      ${C_BOLD}v1.7${C_RESET}"
     echo -e "  ${C_YELLOW}${MSG_ABOUT_AUTHOR:-Autor:}${C_RESET}        ${C_GREEN}Kenny Waddell (@KennyWaddell)${C_RESET}"
     echo -e "  ${C_YELLOW}${MSG_ABOUT_COLLAB:-Colaboración:}${C_RESET} Google DeepMind / Antigravity"
     echo -e "  ${C_YELLOW}${MSG_ABOUT_LICENSE:-Licencia:}${C_RESET}     GNU General Public License v3.0 (GPLv3)"
@@ -1492,7 +1501,7 @@ main() {
                 exit 0
                 ;;
             -v|--version|--about)
-                echo "YT-CLI v1.4"
+                echo "YT-CLI v1.7"
                 echo "Autor: Kenny Waddell (@KennyWaddell)"
                 echo "Colaboración: Google DeepMind / Antigravity"
                 echo "Licencia: GNU General Public License v3.0 (GPLv3)"

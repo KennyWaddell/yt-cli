@@ -133,6 +133,8 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertIn("--fps", cli_src)
         self.assertIn("MAX_FPS", cli_src)
         self.assertIn("best[height<=${target_h}]", cli_src)
+        self.assertIn("bestvideo[height<=${height}]+bestaudio", cli_src)
+        self.assertIn("YT-CLI v1.7", cli_src)
         self.assertIn("sponsorblock-mark=", cli_src)
         self.assertIn("sponsorblock-mark=", gui_src)
 

@@ -7,7 +7,7 @@ LANG_CODE="es"
 LANG_NAME="Español"
 
 # --- Banner principal y prompt ---
-MSG_BANNER_CREDITS="YT-CLI v1.3 • Creado por Kenny Waddell (@KennyWaddell)"
+MSG_BANNER_CREDITS="YT-CLI v1.7 • Creado por Kenny Waddell (@KennyWaddell)"
 MSG_BANNER_SUBTITLE="Cliente Multimedia: YouTube, TikTok, X, Reels y +1000 sitios"
 MSG_BANNER_FEATURES="Aceleración HWDEC Auto • Cola FZF • Descargas MP4/MP3"
 MSG_BANNER_SEARCHES="Búsquedas: término | @canal | @canal término | enlaces URL"
