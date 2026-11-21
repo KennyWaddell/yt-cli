@@ -4,7 +4,6 @@ Descargador automático de binarios portables para YT-CLI (Windows).
 Descarga yt-dlp.exe, ffmpeg.exe y mpv.exe dentro de windows/bin/ sin tocar el PATH.
 """
 
-import json
 import os
 import shutil
 import ssl

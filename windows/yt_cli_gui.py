@@ -182,8 +182,11 @@ def is_playlist_url(url):
         host = (parsed.hostname or "").lower()
         if not (host == "youtube.com" or host.endswith(".youtube.com") or host == "youtu.be"):
             return False
+        if host == "youtu.be" and parsed.path.strip("/"):
+            return False
         qs = parse_qs(parsed.query)
-        return "/playlist" in parsed.path.lower() or ("list" in qs and "v" not in qs)
+        list_vals = [v for v in qs.get("list", []) if v.strip()]
+        return bool(list_vals) and ("/playlist" in parsed.path.lower() or "v" not in qs)
     except Exception:
         return False
 
@@ -412,7 +415,10 @@ class YtCliGUI:
 
         self.msg_queue = queue.Queue()
         self.active_process = None
+        self.search_process = None
         self.mpv_process = None
+        self._is_searching = False
+        self._is_downloading = False
         self.sort_directions = {}
         self.last_search_results = []
         self.is_viewing_history = False
@@ -1231,6 +1237,8 @@ class YtCliGUI:
         self.status_var.set(f"Tabla ordenada por '{col}' ({order_txt}).")
 
     def start_search(self):
+        if self._is_searching:
+            return
         query = self._get_query_text()
         if not query:
             messagebox.showinfo("Búsqueda" if self.current_lang == "es" else "Search", "Escribe un término de búsqueda, @canal o pega un enlace." if self.current_lang == "es" else "Enter a search term, @channel, or paste a link.")
@@ -1247,6 +1255,7 @@ class YtCliGUI:
             return
 
         limit = self.var_limit.get()
+        self._is_searching = True
         self.btn_search.config(state=tk.DISABLED)
         self.prog_bar.start(10)
         if is_playlist_url(query):
@@ -1262,6 +1271,7 @@ class YtCliGUI:
     def _search_worker(self, query, limit):
         ytdlp_cmd = get_binary_path("yt-dlp")
         bin_dir = os.path.dirname(os.path.abspath(ytdlp_cmd))
+        is_en = self.current_lang != "es"
         env = os.environ.copy()
         env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
@@ -1301,27 +1311,32 @@ class YtCliGUI:
                 env=env,
                 **SUBPROCESS_FLAGS
             )
-            self.active_process = proc
-            out, _ = proc.communicate()
+            self.search_process = proc
+            out, err = proc.communicate()
             parsed = []
             for line in out.splitlines():
                 parts = line.strip().split("\t")
                 if len(parts) >= 4:
                     ch_name = "—" if parts[1] in ("", "NA", "None") else parts[1]
                     parsed.append((parts[0], ch_name, parts[2], parts[3]))
-            return parsed
+            return parsed, proc.returncode, (err or "").strip()
 
         try:
-            items = _run_ytdlp_search(search_target, extra_args)
+            items, rc, err_txt = _run_ytdlp_search(search_target, extra_args)
             if not items and query.startswith("@"):
                 fallback_q = query.lstrip("@").strip()
                 if fallback_q:
-                    items = _run_ytdlp_search(f"ytsearch{limit}:{fallback_q}", [])
+                    items, rc, err_txt = _run_ytdlp_search(f"ytsearch{limit}:{fallback_q}", [])
+            if rc != 0 and not items:
+                err_detail = err_txt.splitlines()[-1] if err_txt else (f"Search failed (exit code {rc})." if is_en else f"Error en búsqueda (código {rc}).")
+                self.msg_queue.put(("search_error", format_ytdlp_error(err_detail, is_en=is_en)))
+                return
             self.msg_queue.put(("search_done", items))
         except Exception as e:
-            self.msg_queue.put(("error", f"Error en búsqueda: {str(e)}"))
+            err_msg = f"Search error: {str(e)}" if is_en else f"Error en búsqueda: {str(e)}"
+            self.msg_queue.put(("search_error", err_msg))
         finally:
-            self.active_process = None
+            self.search_process = None
 
     def get_selected_urls(self):
         selected = self.tree.selection()
@@ -1337,7 +1352,7 @@ class YtCliGUI:
             return urls
 
         # Si no hay selección en la tabla, tomar directamente la URL de la caja de entrada
-        query = self.entry_query.get().strip()
+        query = self._get_query_text()
         if query:
             if query.startswith("http://") or query.startswith("https://"):
                 return [query]
@@ -2432,13 +2447,23 @@ class YtCliGUI:
                 urls = self.get_selected_urls()
                 dl_items = [(u, u) for u in urls]
 
+        is_en = self.current_lang != "es"
+        if self._is_downloading:
+            messagebox.showinfo(
+                "Download" if is_en else "Descargar",
+                "A download or subtitle extraction is already in progress."
+                if is_en else
+                "Ya hay una descarga o extracción de subtítulos en curso."
+            )
+            return
+
         if not dl_items:
-            is_en = self.current_lang != "es"
             msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
             title = "Download" if is_en else "Descargar"
             messagebox.showinfo(title, msg)
             return
 
+        self._is_downloading = True
         self.is_cancelled = False
         self.btn_dl_video.config(state=tk.DISABLED)
         self.btn_dl_audio.config(state=tk.DISABLED)
@@ -2876,14 +2901,23 @@ class YtCliGUI:
             self.msg_queue.put(("download_done", None))
 
     def start_subtitles_download(self):
+        is_en = self.current_lang == "en"
+        if self._is_downloading:
+            messagebox.showinfo(
+                "Subtitles" if is_en else "Subtítulos",
+                "A download or subtitle extraction is already in progress."
+                if is_en else
+                "Ya hay una descarga o extracción de subtítulos en curso."
+            )
+            return
         urls = self.get_selected_urls()
         if not urls:
-            is_en = self.current_lang == "en"
             msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
             title = "Subtitles" if is_en else "Subtítulos"
             messagebox.showinfo(title, msg)
             return
 
+        self._is_downloading = True
         self.is_cancelled = False
         self.btn_dl_video.config(state=tk.DISABLED)
         self.btn_dl_audio.config(state=tk.DISABLED)
@@ -3051,6 +3085,7 @@ class YtCliGUI:
             self.active_process = None
             self.status_var.set("Download cancelled." if is_en else "Descarga cancelada.")
 
+        self._is_downloading = False
         self.btn_cancel.config(state=tk.DISABLED)
         self.btn_dl_video.config(state=tk.NORMAL)
         self.btn_dl_audio.config(state=tk.NORMAL)
@@ -3069,6 +3104,7 @@ class YtCliGUI:
         self.is_cancelled = True
         terminate_process_tree(self.mpv_process)
         terminate_process_tree(self.active_process)
+        terminate_process_tree(self.search_process)
         self.root.destroy()
 
     def process_queue(self):
@@ -3076,6 +3112,7 @@ class YtCliGUI:
             while True:
                 msg, data = self.msg_queue.get_nowait()
                 if msg == "search_done":
+                    self._is_searching = False
                     self._reset_progress_bar(active=False)
                     self.btn_search.config(state=tk.NORMAL)
                     self.last_search_results = data
@@ -3091,6 +3128,12 @@ class YtCliGUI:
                         tag = "evenrow" if idx % 2 == 0 else "oddrow"
                         self.tree.insert("", tk.END, values=item, tags=(tag,))
                     self.status_var.set(f"{s['ready']} ({len(data)})")
+                elif msg == "search_error":
+                    self._is_searching = False
+                    self._reset_progress_bar(active=False)
+                    self.btn_search.config(state=tk.NORMAL)
+                    self.status_var.set(data)
+                    messagebox.showerror("Aviso", data)
                 elif msg == "status":
                     self.status_var.set(data)
                 elif msg == "progress":
@@ -3106,6 +3149,7 @@ class YtCliGUI:
                     self.status_var.set(data)
                     messagebox.showerror("Aviso", data)
                 elif msg == "download_cancelled":
+                    self._is_downloading = False
                     self._reset_progress_bar(active=False)
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
@@ -3114,6 +3158,7 @@ class YtCliGUI:
                     is_en = self.current_lang == "en"
                     self.status_var.set("Download cancelled by user." if is_en else "Descarga cancelada por el usuario.")
                 elif msg == "download_error":
+                    self._is_downloading = False
                     self._reset_progress_bar(active=False)
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
@@ -3122,6 +3167,7 @@ class YtCliGUI:
                     is_en = self.current_lang == "en"
                     self.status_var.set("Operation finished with errors." if is_en else "Operación finalizada con errores.")
                 elif msg == "download_done":
+                    self._is_downloading = False
                     self._reset_progress_bar(active=False)
                     self.btn_dl_video.config(state=tk.NORMAL)
                     self.btn_dl_audio.config(state=tk.NORMAL)
@@ -3155,7 +3201,7 @@ class YtCliGUI:
 
 def main():
     root = tk.Tk()
-    app = YtCliGUI(root)
+    YtCliGUI(root)
     root.mainloop()
 
 if __name__ == "__main__":

@@ -5,12 +5,16 @@ Suite de tests automatizados para YT-CLI (Linux CLI + Windows GUI).
 Valida sintaxis, lógica de formatos, paridad de idiomas (i18n) y reglas de seguridad.
 """
 
+import io
 import os
 import py_compile
+import queue
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WINDOWS_DIR = os.path.join(REPO_ROOT, "windows")
@@ -187,6 +191,9 @@ class TestYtCliSuite(unittest.TestCase):
         """is_playlist_url distingue URLs de playlist de vídeos individuales o enlaces ajenos."""
         self.assertTrue(yt_cli_gui.is_playlist_url("https://www.youtube.com/playlist?list=PL12345"))
         self.assertTrue(yt_cli_gui.is_playlist_url("https://youtube.com/watch?list=PL12345"))
+        self.assertTrue(yt_cli_gui.is_playlist_url("https://music.youtube.com/playlist?list=PL12345"))
+        self.assertFalse(yt_cli_gui.is_playlist_url("https://youtu.be/dQw4w9WgXcQ?list=PL12345"))
+        self.assertFalse(yt_cli_gui.is_playlist_url("https://www.youtube.com/playlist?list="))
         self.assertFalse(yt_cli_gui.is_playlist_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL12345"))
         self.assertFalse(yt_cli_gui.is_playlist_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
         self.assertFalse(yt_cli_gui.is_playlist_url("https://example.com/playlist?list=123"))
@@ -204,6 +211,74 @@ class TestYtCliSuite(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             yt_cli_gui.build_ffmpeg_local_trim_cmd("ffmpeg.exe", "in.mp4", "out.mp4", "invalid")
+
+    def _make_worker_stub(self, dl_dir):
+        stub = yt_cli_gui.YtCliGUI.__new__(yt_cli_gui.YtCliGUI)
+        stub.current_lang = "es"
+        stub.msg_queue = queue.Queue()
+        stub.active_process = "dl-sentinel"
+        stub.search_process = None
+        stub.is_cancelled = False
+        stub._is_searching = False
+        stub._is_downloading = False
+        stub.download_dir = dl_dir
+        stub.get_selected_cookie_browser = lambda: None
+        return stub
+
+    def test_search_worker_error_preserves_download_process_and_parses_na(self):
+        """_search_worker aísla search_process, emite search_error en fallo y normaliza canales NA."""
+        stub = self._make_worker_stub(tempfile.gettempdir())
+        fake_err_proc = mock.MagicMock(returncode=1)
+        fake_err_proc.communicate.return_value = ("", "ERROR: Private playlist")
+        with mock.patch.object(yt_cli_gui.subprocess, "Popen", return_value=fake_err_proc):
+            stub._search_worker("https://www.youtube.com/playlist?list=PLprivate", "25")
+        self.assertEqual(stub.active_process, "dl-sentinel")
+        self.assertIsNone(stub.search_process)
+        msgs = [stub.msg_queue.get_nowait() for _ in range(stub.msg_queue.qsize())]
+        self.assertEqual(len(msgs), 1)
+        self.assertEqual(msgs[0][0], "search_error")
+        self.assertIn("Private playlist", msgs[0][1])
+
+        fake_ok_proc = mock.MagicMock(returncode=0)
+        fake_ok_proc.communicate.return_value = ("Video Demo\tNA\t03:20\tabc12345678\n", "")
+        with mock.patch.object(yt_cli_gui.subprocess, "Popen", return_value=fake_ok_proc):
+            stub._search_worker("demo", "15")
+        kind, items = stub.msg_queue.get_nowait()
+        self.assertEqual(kind, "search_done")
+        self.assertEqual(items, [("Video Demo", "—", "03:20", "abc12345678")])
+
+    def test_subtitles_worker_429_and_empty_srt(self):
+        """_subtitles_worker detecta HTTP 429 y falla explícitamente si no se generó ningún .srt."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            stub = self._make_worker_stub(tmpdir)
+            proc_429 = mock.MagicMock(returncode=1)
+            proc_429.stdout = io.StringIO("ERROR: Unable to download video subtitles for 'es': HTTP Error 429: Too Many Requests\n")
+            with mock.patch.object(yt_cli_gui.subprocess, "Popen", return_value=proc_429):
+                stub._subtitles_worker(["https://www.youtube.com/watch?v=dQw4w9WgXcQ"])
+            msgs = [stub.msg_queue.get_nowait() for _ in range(stub.msg_queue.qsize())]
+            err_msgs = [m for m in msgs if m[0] == "error"]
+            self.assertTrue(err_msgs and "429" in err_msgs[0][1])
+            self.assertEqual(msgs[-1][0], "download_error")
+
+            stub_empty = self._make_worker_stub(tmpdir)
+            proc_empty = mock.MagicMock(returncode=0)
+            proc_empty.stdout = io.StringIO("[info] There are no subtitles for the requested languages\n")
+            with mock.patch.object(yt_cli_gui.subprocess, "Popen", return_value=proc_empty):
+                stub_empty._subtitles_worker(["https://www.youtube.com/watch?v=UbC7iRA_O3g"])
+            msgs_empty = [stub_empty.msg_queue.get_nowait() for _ in range(stub_empty.msg_queue.qsize())]
+            self.assertTrue(any(m[0] == "error" and "No hay subtítulos disponibles" in m[1] for m in msgs_empty))
+            self.assertEqual(msgs_empty[-1][0], "download_error")
+
+    def test_download_concurrency_guard(self):
+        """start_download y start_subtitles_download bloquean lanzamientos simultáneos."""
+        stub = self._make_worker_stub(tempfile.gettempdir())
+        stub._is_downloading = True
+        with mock.patch.object(yt_cli_gui.messagebox, "showinfo") as mock_info, \
+                mock.patch.object(yt_cli_gui.threading, "Thread") as mock_thread:
+            stub.start_download(override_items=[("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "Test")])
+            stub.start_subtitles_download()
+        self.assertEqual(mock_info.call_count, 2)
+        mock_thread.assert_not_called()
 
 
 if __name__ == "__main__":
