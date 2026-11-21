@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 YT-CLI - Cliente multimedia ultraligero y portable
-Diseño moderno y minimalista para Linux y Windows (7 SP1, 8.1, 10)
+Diseño moderno y minimalista para Linux y Windows (8.1, 10, 11; 7 SP1 vía VxKex)
 """
 
 import os
@@ -393,6 +393,15 @@ def format_ytdlp_error(raw_msg, is_en=False):
             "YouTube limitó temporalmente las peticiones (HTTP 429). Espera unos minutos o prueba Cookies de Firefox."
         )
         return f"{tip}\n\n{msg}" if msg else tip
+    if "loadlibrary:" in low:
+        tip = (
+            "Could not load yt-dlp.exe (missing system DLL). Official yt-dlp.exe requires Windows 8.1/10/11 "
+            "(or an API extender such as VxKex / VxKex NEXT on Windows 7 SP1)."
+            if is_en else
+            "No se pudo cargar yt-dlp.exe (falta DLL del sistema). El motor yt-dlp.exe oficial requiere Windows 8.1/10/11 "
+            "(o un extensor de API como VxKex / VxKex NEXT en Windows 7 SP1)."
+        )
+        return f"{tip}\n\n{msg}" if msg else tip
     return msg
 
 
@@ -451,7 +460,7 @@ class YtCliGUI:
         for ico_file in ico_candidates:
             if os.path.isfile(ico_file):
                 try:
-                    self.root.iconbitmap(ico_file)
+                    self.root.iconbitmap(default=ico_file)
                     ico_applied = True
                     break
                 except Exception:

@@ -5,7 +5,7 @@
 </p>
 
 > **Ultralight Terminal Multimedia Client for Linux & Standalone Portable GUI for Windows**  
-> Specifically engineered for resource-constrained systems (Intel Celeron, Atom, vintage ThinkPads, and PCs with 2 GB RAM). Compatible with Linux and Windows 7 SP1, 8.1, 10, and 11.
+> Specifically engineered for resource-constrained systems (Intel Celeron, Atom, vintage ThinkPads, and PCs with 2 GB RAM). Compatible with Linux and Windows 8.1, 10, and 11 (plus Windows 7 SP1 via VxKex).
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform: Linux & Windows](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue.svg)](#system-requirements)
@@ -37,7 +37,7 @@ Modern web browsers (Brave, Chrome, Firefox) typically consume between **900 MB 
 | **Audio-Only Mode (Podcast/Music)** | 600 MB - 800 MB | **~25 MB** |
 | **Privacy** | Tracking cookies & cloud analytics | **100% Private (Zero telemetry / Local-only history)** |
 
-> **Test Environments:** Reference metrics measured on legacy dual-core iGPU hardware (H.264 720p@30fps via `d3d11va`/`vaapi`). Verified on **Debian Linux**, **Windows 10 (1609 LTSB)**, and **Windows 8.1 Lite** (built with Python 3.8.10 for Windows 7 SP1 compatibility; Win7 validation in progress).
+> **Test Environments:** Reference metrics measured on legacy dual-core iGPU hardware (H.264 720p@30fps via `d3d11va`/`vaapi`). Verified on **Debian Linux**, **Windows 10 (1607 LTSB)**, and **Windows 8.1** (`YT-CLI.exe` is built with Python 3.8.10; Windows 7 SP1 requires `VxKex`/`VxKex NEXT` because upstream `yt-dlp.exe` bundles Python 3.14).
 
 ---
 
@@ -46,7 +46,7 @@ Modern web browsers (Brave, Chrome, Firefox) typically consume between **900 MB 
 If you are familiar with terminal tools like `ytfzf`, here is how `YT-CLI` compares:
 
 1. **Zero Configuration Out-of-the-Box:** `ytfzf` requires extensive shell scripting and manual configuration files to throttle formats on older hardware. `YT-CLI` comes pre-configured with H.264 filters and safe hardware acceleration (`auto-safe`) from the first second.
-2. **Unified Cross-Platform Suite:** `ytfzf` is limited to POSIX systems (Linux/macOS/BSD). `YT-CLI` provides both a pure Linux terminal CLI and a native, zero-install portable graphical application (`YT-CLI.exe`) for Windows 7, 8.1, 10, and 11.
+2. **Unified Cross-Platform Suite:** `ytfzf` is limited to POSIX systems (Linux/macOS/BSD). `YT-CLI` provides both a pure Linux terminal CLI and a native, zero-install portable graphical application (`YT-CLI.exe`) for Windows 8.1, 10, and 11 (and Windows 7 SP1 with `VxKex`).
 3. **Integrated Download & Playlist Manager:** While `ytfzf` focuses primarily on playback, `YT-CLI` includes a built-in download engine with destination folder selection (including mounted USB flash drives), automatic download resumption (`--continue`), MP3 audio extraction (320 kbps) with embedded cover art and ID3 tags, and MP4 video downloads.
 4. **Creator & Channel Search Syntax:** Direct search inside specific YouTube channels by typing `@channel` or `@channel query`.
 5. **UNIX Philosophy (No Terminal Graphics Hacks):** Tools that attempt to render thumbnails inside terminal emulators often suffer from distorted fonts, broken aspect ratios, and visual flickering during dynamic FZF filtering. Following the UNIX philosophy (*"Do one thing and do it well"*), `YT-CLI` keeps the Linux client purely text-based, instant, and distraction-free, reserving native visual cards for the Windows GUI.
@@ -80,7 +80,7 @@ If you are familiar with terminal tools like `ytfzf`, here is how `YT-CLI` compa
 * 🌐 **Multilingual System (10 Languages):** Native internationalization (`en`, `es`, `zh`, `hi`, `ar`, `pt`, `fr`, `de`, `ru`, `ja`) with automatic OS language detection, dynamic search language (`youtube:lang=...`), runtime switcher (`:lang` / GUI dropdown), and CLI flag (`--lang`).
 * ⏭️ **SponsorBlock Integration:** Automatically skip/remove sponsored segments on download (`-sb` / `--sponsorblock` + `--sb-profile basic|standard|all` on Linux, or profile selector in Windows GUI) and optionally mark segments as chapters in MPV (`--sb-mark`).
 * 🎞️ **Flexible FPS & Fallback:** Supports `30`, `60`, or `Auto` FPS (`--fps` on Linux CLI, dropdown in Windows GUI) with clean resolution fallback for non-YouTube sites.
-* 🪟 **Portable Windows GUI:** Standalone zero-install executable for Windows 7 SP1, 8.1, 10, and 11 with dark/light themes, live 0–100% progress bar, playlist table loading, Downloads view (play, resume, clear, delete), one-click folder open, built-in `Options -> Update yt-dlp`, Help dialog, and dedicated audio mode.
+* 🪟 **Portable Windows GUI:** Standalone zero-install executable for Windows 8.1, 10, and 11 (7 SP1 via `VxKex`) with dark/light themes, live 0–100% progress bar, playlist table loading, Downloads view (play, resume, clear, delete), one-click folder open, built-in `Options -> Update yt-dlp`, Help dialog, and dedicated audio mode.
 * 🔔 **Desktop Notifications:** Native non-blocking desktop notifications upon download completion.
 
 ---
@@ -203,7 +203,7 @@ yt-cli --lang es
   <img src="assets/YT-CLI-Windows.gif" alt="YT-CLI Windows GUI" width="750">
 </p>
 
-YT-CLI provides an official, native standalone package for **Windows 7 SP1, 8.1, 10, and 11 (64-bit)**. It does not require installing Python, configuring dependencies, or modifying system `PATH`.
+YT-CLI provides an official, native standalone package for **Windows 8.1, 10, and 11 (64-bit)**. It does not require installing Python, configuring dependencies, or modifying system `PATH`. *(On **Windows 7 SP1**, `YT-CLI.exe` and `mpv.exe` run natively, while upstream `yt-dlp.exe` requires **VxKex / VxKex NEXT** due to Python 3.14 DLL dependencies.)*
 
 ### Quick Steps:
 1. Go to [**Releases**](https://github.com/KennyWaddell/yt-cli/releases) and download **`YT-CLI-Windows-Portable.zip`** (every release is compiled transparently in GitHub Actions with `SHA256.txt` verification and automated VM smoke tests).

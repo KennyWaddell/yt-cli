@@ -13,7 +13,9 @@ of platforms with hardware acceleration (GPU).
 
 REQUIREMENTS
 ------------
-1. Windows 7 SP1, 8.1, 10, or 11 (64-bit).
+1. Windows 8.1, 10, or 11 (64-bit).
+   (Windows 7 SP1: YT-CLI.exe and mpv.exe run natively, but upstream
+   yt-dlp.exe uses Python 3.14 and requires VxKex / VxKex NEXT.)
 2. Fully portable: does NOT require Python or external dependencies installed.
 
 QUICK START
@@ -80,7 +82,9 @@ de plataformas con aceleracion por hardware (GPU).
 
 REQUISITOS
 ----------
-1. Windows 7 SP1, 8.1, 10 u 11 (64-bit).
+1. Windows 8.1, 10 u 11 (64-bit).
+   (Windows 7 SP1: YT-CLI.exe y mpv.exe funcionan de forma nativa, pero
+   yt-dlp.exe oficial usa Python 3.14 y requiere VxKex / VxKex NEXT.)
 2. Completamente portable: NO requiere instalar Python ni dependencias en el sistema.
 
 INSTRUCCIONES DE USO

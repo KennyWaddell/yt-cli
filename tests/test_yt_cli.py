@@ -177,6 +177,12 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertIn("override_urls", gui_src)
         self.assertIn("timeout=3", gui_src)
         self.assertNotIn('self.current_lang == "en"', gui_src)
+        self.assertIn("iconbitmap(default=ico_file)", gui_src)
+
+        with open(os.path.join(WINDOWS_DIR, "locales_data.py"), "r", encoding="utf-8") as f:
+            loc_src = f.read()
+        self.assertNotIn("📝", loc_src)
+        self.assertNotIn("🔄", loc_src)
 
         with open(os.path.join(WINDOWS_DIR, "setup_binaries.py"), "r", encoding="utf-8") as f:
             setup_src = f.read()
@@ -202,6 +208,8 @@ class TestYtCliSuite(unittest.TestCase):
         self.assertIn("App-Bound Encryption", dpapi)
         err429 = yt_cli_gui.format_ytdlp_error("ERROR: HTTP Error 429: Too Many Requests", is_en=True)
         self.assertIn("429", err429)
+        err_ll = yt_cli_gui.format_ytdlp_error("LoadLibrary: No se puede encontrar el mdulo especificado.", is_en=False)
+        self.assertIn("VxKex", err_ll)
         self.assertEqual(yt_cli_gui.format_ytdlp_error("plain error", is_en=False), "plain error")
 
     def test_is_playlist_url(self):
