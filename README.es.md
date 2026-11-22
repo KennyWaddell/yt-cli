@@ -203,6 +203,23 @@ yt-cli -d "https://www.tiktok.com/@usuario/video/..."
   <img src="assets/YT-CLI-Windows.gif" alt="Interfaz Gráfica de YT-CLI en Windows" width="750">
 </p>
 
+<details>
+<summary><b>📸 Ver capturas estáticas de la GUI en Windows (Inicio, Búsqueda y Reproducción)</b></summary>
+<br>
+<p align="center">
+  <img src="assets/gui-home.jpg" alt="YT-CLI GUI Windows - Inicio" width="700"><br>
+  <sub><i>Pantalla inicial limpia</i></sub>
+</p>
+<p align="center">
+  <img src="assets/gui-search.jpg" alt="YT-CLI GUI Windows - Búsqueda y Orden" width="700"><br>
+  <sub><i>Resultados de búsqueda ordenados por duración</i></sub>
+</p>
+<p align="center">
+  <img src="assets/gui-playing.jpg" alt="YT-CLI GUI Windows - Reproducción" width="700"><br>
+  <sub><i>Reproducción por hardware (<code>d3d11va</code>) en MPV</i></sub>
+</p>
+</details>
+
 YT-CLI incluye una versión oficial con interfaz gráfica portable para **Windows 8.1, 10 y 11 (64-bit)**. No requiere instalar Python, ni configurar dependencias, ni tocar el `PATH` del sistema. *(En **Windows 7 SP1**, `YT-CLI.exe` y `mpv.exe` arrancan de forma nativa, pero `yt-dlp.exe` oficial requiere **VxKex / VxKex NEXT** por usar Python 3.14.)*
 
 ### Pasos rápidos:

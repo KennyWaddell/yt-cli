@@ -211,6 +211,23 @@ yt-cli --lang es
   <img src="assets/YT-CLI-Windows.gif" alt="YT-CLI Windows GUI" width="750">
 </p>
 
+<details>
+<summary><b>📸 View Static Windows GUI Screenshots (Home, Search &amp; Playback)</b></summary>
+<br>
+<p align="center">
+  <img src="assets/gui-home.jpg" alt="YT-CLI Windows GUI - Home" width="700"><br>
+  <sub><i>Clean startup screen</i></sub>
+</p>
+<p align="center">
+  <img src="assets/gui-search.jpg" alt="YT-CLI Windows GUI - Search &amp; Sort" width="700"><br>
+  <sub><i>Search results sorted by duration</i></sub>
+</p>
+<p align="center">
+  <img src="assets/gui-playing.jpg" alt="YT-CLI Windows GUI - Video Playback" width="700"><br>
+  <sub><i>Hardware-accelerated playback (<code>d3d11va</code>) in MPV</i></sub>
+</p>
+</details>
+
 YT-CLI provides an official, native standalone package for **Windows 8.1, 10, and 11 (64-bit)**. It does not require installing Python, configuring dependencies, or modifying system `PATH`. *(On **Windows 7 SP1**, `YT-CLI.exe` and `mpv.exe` run natively, while upstream `yt-dlp.exe` requires **VxKex / VxKex NEXT** due to Python 3.14 DLL dependencies.)*
 
 ### Quick Steps:
