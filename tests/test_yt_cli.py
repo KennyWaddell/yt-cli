@@ -5,6 +5,7 @@ Suite de tests automatizados para YT-CLI (Linux CLI + Windows GUI).
 Valida sintaxis, lógica de formatos, paridad de idiomas (i18n) y reglas de seguridad.
 """
 
+import ast
 import io
 import os
 import py_compile
@@ -321,6 +322,60 @@ class TestYtCliSuite(unittest.TestCase):
             stub.start_subtitles_download()
         self.assertEqual(mock_info.call_count, 2)
         mock_thread.assert_not_called()
+
+    def test_sort_tree_translates_column_labels(self):
+        """sort_tree traduce el nombre de la columna y el sentido en todos los idiomas."""
+        stub = self._make_worker_stub(tempfile.gettempdir())
+        stub.sort_directions = {}
+        stub.is_viewing_downloads = False
+        stub._refresh_row_tags = lambda: None
+        recorded = []
+        stub.status_var = mock.MagicMock()
+        stub.status_var.set.side_effect = recorded.append
+        stub.tree = mock.MagicMock()
+        stub.tree.get_children.return_value = ["i1", "i2"]
+        stub.tree.set.side_effect = lambda k, col: "01:00" if k == "i1" else "02:00"
+
+        stub.current_lang = "es"
+        stub.sort_tree("duration")
+        self.assertIn("Duración", recorded[-1])
+        self.assertNotIn("'duration'", recorded[-1])
+
+        stub.current_lang = "pt"
+        stub.sort_tree("duration")
+        self.assertIn("Duração", recorded[-1])
+        self.assertIn("decrescente", recorded[-1])
+
+        stub.is_viewing_downloads = True
+        stub.current_lang = "en"
+        stub.sort_tree("duration")
+        self.assertIn("Status", recorded[-1])
+
+    def test_all_gui_locales_placeholders_and_no_binary_i18n(self):
+        """Todas las claves con placeholders coinciden entre idiomas y no queda lógica binaria ES/EN en YtCliGUI."""
+        placeholder_re = re.compile(r"\{([a-zA-Z0-9_]+)\}")
+        en_dict = locales_data.GUI_STRINGS["en"]
+        for lang, lang_dict in locales_data.GUI_STRINGS.items():
+            for key, en_val in en_dict.items():
+                self.assertEqual(
+                    set(placeholder_re.findall(lang_dict[key])),
+                    set(placeholder_re.findall(en_val)),
+                    f"Placeholders distintos en '{lang}.{key}'",
+                )
+
+        gui_path = os.path.join(WINDOWS_DIR, "yt_cli_gui.py")
+        with open(gui_path, "r", encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=gui_path)
+
+        gui_cls = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "YtCliGUI"
+        )
+        forbidden_names = {
+            node.id for node in ast.walk(gui_cls)
+            if isinstance(node, ast.Name) and node.id in ("is_en", "is_es")
+        }
+        self.assertEqual(forbidden_names, set(), f"Variables binarias detectadas en YtCliGUI: {forbidden_names}")
 
 
 if __name__ == "__main__":

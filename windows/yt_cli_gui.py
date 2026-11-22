@@ -373,34 +373,20 @@ def build_ffmpeg_local_trim_cmd(ffmpeg_cmd, src_path, dest_path, trim_section):
     ]
 
 
-def format_ytdlp_error(raw_msg, is_en=False):
+def format_ytdlp_error(raw_msg, is_en=False, lang=None):
     """Traduce errores técnicos frecuentes de yt-dlp (DPAPI/cookies, HTTP 429) a guías claras."""
     msg = (raw_msg or "").strip()
     low = msg.lower()
+    lang_code = lang if lang in GUI_STRINGS else ("en" if is_en else "es")
+    strings = GUI_STRINGS.get(lang_code, GUI_STRINGS["en"])
     if "failed to decrypt with dpapi" in low or "yt-dlp/issues/10927" in low or "could not copy chrome cookie database" in low:
-        tip = (
-            "Brave/Chrome/Edge blocked cookie decryption on Windows (App-Bound Encryption).\n"
-            "Set Cookies to 'None' or use Firefox."
-            if is_en else
-            "Brave/Chrome/Edge bloquearon el descifrado de cookies en Windows (DPAPI / App-Bound Encryption).\n"
-            "Cambia Cookies a 'Ninguna' o usa Firefox."
-        )
+        tip = strings["err_dpapi"]
         return f"{tip}\n\n{msg}" if msg else tip
     if "http error 429" in low or "too many requests" in low:
-        tip = (
-            "YouTube temporarily rate-limited requests (HTTP 429). Wait a few minutes or switch Cookies (e.g. Firefox)."
-            if is_en else
-            "YouTube limitó temporalmente las peticiones (HTTP 429). Espera unos minutos o prueba Cookies de Firefox."
-        )
+        tip = strings["err_429"]
         return f"{tip}\n\n{msg}" if msg else tip
     if "loadlibrary:" in low:
-        tip = (
-            "Could not load yt-dlp.exe (missing system DLL). Official yt-dlp.exe requires Windows 8.1/10/11 "
-            "(or an API extender such as VxKex / VxKex NEXT on Windows 7 SP1)."
-            if is_en else
-            "No se pudo cargar yt-dlp.exe (falta DLL del sistema). El motor yt-dlp.exe oficial requiere Windows 8.1/10/11 "
-            "(o un extensor de API como VxKex / VxKex NEXT en Windows 7 SP1)."
-        )
+        tip = strings["err_loadlibrary"]
         return f"{tip}\n\n{msg}" if msg else tip
     return msg
 
@@ -810,7 +796,7 @@ class YtCliGUI:
 
         self.btn_extract_subs = tk.Button(
             self.action_bar,
-            text="📝 Subtítulos",
+            text="✎ Subtítulos",
             command=self.start_subtitles_download,
             font=("sans-serif", 9),
             relief="flat",
@@ -970,9 +956,10 @@ class YtCliGUI:
                 if ch.lower() not in seen:
                     seen.add(ch.lower())
                     channels.append(ch)
+        ignored = {d.get("web_link", "") for d in GUI_STRINGS.values()} | {"Enlace Web", "Web Link", "NA"}
         for entry in load_history_data().get("history", []):
             ch = (entry.get("channel") or "").strip()
-            if ch and ch not in ("Enlace Web", "NA") and ch.lower() not in seen:
+            if ch and ch not in ignored and ch.lower() not in seen:
                 seen.add(ch.lower())
                 channels.append(ch)
         return channels
@@ -1039,9 +1026,10 @@ class YtCliGUI:
         lb.bind("<Return>", apply_choice)
         self._channel_popup = popup
 
-    def get_strings(self):
+    def get_strings(self, lang=None):
         base = GUI_STRINGS["en"]
-        lang_dict = GUI_STRINGS.get(self.current_lang, base)
+        code = lang if lang is not None else self.current_lang
+        lang_dict = GUI_STRINGS.get(code, base)
         merged = dict(base)
         merged.update(lang_dict)
         return merged
@@ -1094,7 +1082,7 @@ class YtCliGUI:
                 break
         self.btn_theme_toggle.config(text=s["theme_light"] if self.current_theme == "dark" else s["theme_dark"])
         self.btn_about.config(text=s["credits"])
-        self.btn_help.config(text="Help" if self.current_lang != "es" else "Ayuda")
+        self.btn_help.config(text=s["help"])
         self.btn_paste.config(text=s["paste"])
         self.btn_clear.config(text=s["clear"])
         self.btn_search.config(text=s["search"])
@@ -1110,10 +1098,7 @@ class YtCliGUI:
         self.btn_browse.config(text=s["change_folder"])
         self.btn_open_folder.config(text=s["open_folder"])
         self.lbl_table_info.config(text=s["table_hint"])
-        self.tree.heading("title", text=s["col_title"])
-        self.tree.heading("channel", text=s["col_channel"])
-        self.tree.heading("duration", text=s["col_duration"])
-        self.tree.heading("id", text=s["col_id"])
+        self._set_tree_headers("downloads" if self.is_viewing_downloads else "search")
         self.btn_play_vid.config(text=s["play_video"])
         self.btn_play_aud.config(text=s["play_audio"])
         self.btn_dl_video.config(text=s["download_video"])
@@ -1169,30 +1154,32 @@ class YtCliGUI:
         try:
             clip = self.root.clipboard_get().strip()
             if self._is_supported_clipboard_url(clip):
+                s = self.get_strings()
                 self._set_query_text(clip)
-                item_id = self.tree.insert("", tk.END, values=("Enlace multimedia detectado", "Enlace Web", "--:--", clip), tags=("evenrow",))
+                item_id = self.tree.insert("", tk.END, values=(s["clip_detected_item"], s["web_link"], "--:--", clip), tags=("evenrow",))
                 self.tree.selection_set(item_id)
-                self.status_var.set("Enlace detectado del portapapeles. Listo para Ver Vídeo, Escuchar Audio o Descargar.")
+                self.status_var.set(s["clip_detected_status"])
         except Exception:
             pass
 
     def paste_clipboard(self):
+        s = self.get_strings()
         try:
             clip = self.root.clipboard_get().strip()
             if not clip:
-                messagebox.showwarning("Portapapeles", "El portapapeles está vacío.")
+                messagebox.showwarning(s["clip_title"], s["clip_empty"])
                 return
             self._set_query_text(clip)
             if clip.startswith("http://") or clip.startswith("https://"):
                 for item in self.tree.get_children():
                     self.tree.delete(item)
-                item_id = self.tree.insert("", tk.END, values=("Enlace pegado", "Enlace Web", "--:--", clip), tags=("evenrow",))
+                item_id = self.tree.insert("", tk.END, values=(s["clip_pasted_item"], s["web_link"], "--:--", clip), tags=("evenrow",))
                 self.tree.selection_set(item_id)
-                self.status_var.set("Enlace pegado y seleccionado. Elige Ver Vídeo, Escuchar Audio o Descargar.")
+                self.status_var.set(s["clip_pasted_status"])
             else:
-                self.status_var.set(f"Texto pegado: '{clip}'. Pulsa Buscar para ver resultados.")
+                self.status_var.set(s["clip_text_status"].format(text=clip))
         except Exception:
-            messagebox.showwarning("Portapapeles", "No se pudo leer el portapapeles.")
+            messagebox.showwarning(s["clip_title"], s["clip_read_err"])
 
     def clear_all(self):
         """Limpia el campo de entrada, la tabla de resultados y el estado."""
@@ -1210,7 +1197,8 @@ class YtCliGUI:
         self._show_placeholder()
 
     def browse_folder(self):
-        chosen = filedialog.askdirectory(initialdir=self.download_dir, title="Seleccionar Carpeta")
+        s = self.get_strings()
+        chosen = filedialog.askdirectory(initialdir=self.download_dir, title=s["select_folder"])
         if chosen:
             self.download_dir = chosen
             self.lbl_dest_path.config(text=chosen)
@@ -1245,15 +1233,32 @@ class YtCliGUI:
             self.tree.move(k, "", index)
 
         self._refresh_row_tags()
-        order_txt = "descendente ↓" if reverse else "ascendente ↑"
-        self.status_var.set(f"Tabla ordenada por '{col}' ({order_txt}).")
+        s = self.get_strings()
+        if self.is_viewing_downloads:
+            col_map = {
+                "title": s["col_title"],
+                "channel": s["col_format"],
+                "duration": s["col_status"],
+                "id": s["col_date"],
+            }
+        else:
+            col_map = {
+                "title": s["col_title"],
+                "channel": s["col_channel"],
+                "duration": s["col_duration"],
+                "id": s["col_id"],
+            }
+        col_label = col_map.get(col, col).replace(" ↕", "").strip()
+        order_txt = s["sort_desc"] if reverse else s["sort_asc"]
+        self.status_var.set(s["table_sorted"].format(col=col_label, order=order_txt))
 
     def start_search(self):
         if self._is_searching:
             return
+        s = self.get_strings()
         query = self._get_query_text()
         if not query:
-            messagebox.showinfo("Búsqueda" if self.current_lang == "es" else "Search", "Escribe un término de búsqueda, @canal o pega un enlace." if self.current_lang == "es" else "Enter a search term, @channel, or paste a link.")
+            messagebox.showinfo(s["search"], s["search_empty"])
             return
 
         if (query.startswith("http://") or query.startswith("https://")) and not is_playlist_url(query):
@@ -1261,9 +1266,9 @@ class YtCliGUI:
                 self.tree.delete(item)
             self.is_viewing_history = False
             self.is_viewing_downloads = False
-            item_id = self.tree.insert("", tk.END, values=("Enlace directo cargado", "Enlace Web", "--:--", query), tags=("evenrow",))
+            item_id = self.tree.insert("", tk.END, values=(s["direct_link_item"], s["web_link"], "--:--", query), tags=("evenrow",))
             self.tree.selection_set(item_id)
-            self.status_var.set("Enlace cargado y seleccionado. Listo para Ver o Descargar.")
+            self.status_var.set(s["direct_link_status"])
             return
 
         limit = self.var_limit.get()
@@ -1271,9 +1276,9 @@ class YtCliGUI:
         self.btn_search.config(state=tk.DISABLED)
         self.prog_bar.start(10)
         if is_playlist_url(query):
-            self.status_var.set(f"Cargando playlist ({limit} elementos máx.)..." if self.current_lang == "es" else f"Loading playlist (up to {limit} items)...")
+            self.status_var.set(s["loading_playlist"].format(limit=limit))
         else:
-            self.status_var.set(f"Buscando '{query}' ({limit} resultados)...")
+            self.status_var.set(s["searching_status"].format(query=query, limit=limit))
         for item in self.tree.get_children():
             self.tree.delete(item)
 
@@ -1283,7 +1288,8 @@ class YtCliGUI:
     def _search_worker(self, query, limit):
         ytdlp_cmd = get_binary_path("yt-dlp")
         bin_dir = os.path.dirname(os.path.abspath(ytdlp_cmd))
-        is_en = self.current_lang != "es"
+        lang = self.current_lang
+        s = self.get_strings(lang)
         env = os.environ.copy()
         env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
         env["PYTHONIOENCODING"] = "utf-8"
@@ -1340,12 +1346,12 @@ class YtCliGUI:
                 if fallback_q:
                     items, rc, err_txt = _run_ytdlp_search(f"ytsearch{limit}:{fallback_q}", [])
             if rc != 0 and not items:
-                err_detail = err_txt.splitlines()[-1] if err_txt else (f"Search failed (exit code {rc})." if is_en else f"Error en búsqueda (código {rc}).")
-                self.msg_queue.put(("search_error", format_ytdlp_error(err_detail, is_en=is_en)))
+                err_detail = err_txt.splitlines()[-1] if err_txt else s["search_failed_code"].format(rc=rc)
+                self.msg_queue.put(("search_error", format_ytdlp_error(err_detail, lang=lang)))
                 return
             self.msg_queue.put(("search_done", items))
         except Exception as e:
-            err_msg = f"Search error: {str(e)}" if is_en else f"Error en búsqueda: {str(e)}"
+            err_msg = s["search_error_msg"].format(err=str(e))
             self.msg_queue.put(("search_error", err_msg))
         finally:
             self.search_process = None
@@ -1404,15 +1410,14 @@ class YtCliGUI:
             self.show_last_search()
 
     def _set_tree_headers(self, mode="search"):
-        is_es = self.current_lang == "es"
+        s = self.get_strings()
         if mode == "downloads":
-            self.tree.heading("title", text="Título ↕" if is_es else "Title ↕")
-            self.tree.heading("channel", text="Formato" if is_es else "Format")
-            self.tree.heading("duration", text="Estado" if is_es else "Status")
-            self.tree.heading("id", text="Fecha" if is_es else "Date")
+            self.tree.heading("title", text=s["col_title"])
+            self.tree.heading("channel", text=s["col_format"])
+            self.tree.heading("duration", text=s["col_status"])
+            self.tree.heading("id", text=s["col_date"])
             self.tree.column("id", width=130, minwidth=115, anchor="center", stretch=False)
         else:
-            s = self.get_strings()
             self.tree.heading("title", text=s["col_title"])
             self.tree.heading("channel", text=s["col_channel"])
             self.tree.heading("duration", text=s["col_duration"])
@@ -1422,14 +1427,14 @@ class YtCliGUI:
     def show_history(self):
         data = load_history_data()
         hist = data.get("history", [])
+        s = self.get_strings()
         if not hist:
-            messagebox.showinfo("Historial" if self.current_lang == "es" else "History", "El historial de reproducción está vacío." if self.current_lang == "es" else "Watch history is empty.")
+            messagebox.showinfo(s["history"], s["hist_empty"])
             return
 
         self.is_viewing_history = True
         self.is_viewing_downloads = False
         self._set_tree_headers("search")
-        s = self.get_strings()
         self.btn_history.config(text=s["history_back"])
         self.btn_downloads.config(text=s["downloads"])
         self.btn_hist_clear.config(text=s["hist_clear_all"], command=self.clear_history_from_view)
@@ -1442,20 +1447,19 @@ class YtCliGUI:
             tag = "evenrow" if idx % 2 == 0 else "oddrow"
             self.tree.insert("", tk.END, values=(entry.get("title", ""), entry.get("channel", ""), entry.get("duration", ""), entry.get("id", "")), tags=(tag,))
 
-        self.status_var.set(f"Mostrando historial ({len(hist)} vídeos). Clic derecho o Supr para eliminar." if self.current_lang == "es" else f"Showing history ({len(hist)} items). Right-click or Del to remove.")
+        self.status_var.set(s["showing_history"].format(count=len(hist)))
 
     def show_downloads(self):
         items = load_downloads_data()
-        is_es = self.current_lang == "es"
+        s = self.get_strings()
         if not items:
-            messagebox.showinfo(self.get_strings()["downloads"], "No hay descargas registradas todavía." if is_es else "No recorded downloads yet.")
+            messagebox.showinfo(s["downloads"], s["dl_empty"])
             return
 
         self.is_viewing_downloads = True
         self.is_viewing_history = False
         self._set_tree_headers("downloads")
         self._download_entry_map = {}
-        s = self.get_strings()
         self.btn_downloads.config(text=s["history_back"])
         self.btn_history.config(text=s["history"])
         self.btn_hist_clear.config(text=s["dl_clear_all"], command=self.clear_downloads_from_view)
@@ -1465,16 +1469,16 @@ class YtCliGUI:
             self.tree.delete(item)
 
         status_labels = {
-            "completed": "Completado" if is_es else "Completed",
-            "cancelled": "Detenido" if is_es else "Stopped",
-            "error": "Error"
+            "completed": s["status_completed"],
+            "cancelled": s["status_stopped"],
+            "error": s["status_error"],
         }
         for idx, entry in enumerate(items):
             tag = "evenrow" if idx % 2 == 0 else "oddrow"
             st_key = entry.get("status", "error")
             fpath = entry.get("filepath", "")
             if st_key == "completed" and fpath and not os.path.isfile(fpath):
-                st_txt = "No en disco" if is_es else "Missing"
+                st_txt = s["status_missing"]
             else:
                 st_txt = status_labels.get(st_key, st_key)
             row_id = self.tree.insert(
@@ -1485,11 +1489,7 @@ class YtCliGUI:
             )
             self._download_entry_map[row_id] = entry
 
-        self.status_var.set(
-            f"Mostrando descargas ({len(items)}). Doble clic para reproducir o clic derecho para reanudar/borrar."
-            if is_es else
-            f"Showing downloads ({len(items)}). Double-click to play or right-click to resume/delete."
-        )
+        self.status_var.set(s["showing_downloads"].format(count=len(items)))
 
     def show_last_search(self):
         self.is_viewing_history = False
@@ -1512,11 +1512,11 @@ class YtCliGUI:
             tag = "evenrow" if idx % 2 == 0 else "oddrow"
             self.tree.insert("", tk.END, values=item, tags=(tag,))
 
-        self.status_var.set(f"Volviste a tu búsqueda ({len(self.last_search_results)} resultados)." if self.current_lang == "es" else f"Returned to search ({len(self.last_search_results)} results).")
+        self.status_var.set(s["returned_search"].format(count=len(self.last_search_results)))
 
     def clear_history_from_view(self):
-        is_es = self.current_lang == "es"
-        if messagebox.askyesno("Historial" if is_es else "History", "¿Borrar todo el historial local?" if is_es else "Clear all local watch history?"):
+        s = self.get_strings()
+        if messagebox.askyesno(s["history"], s["hist_confirm_clear"]):
             data = load_history_data()
             data["history"] = []
             save_history_data(data)
@@ -1524,14 +1524,8 @@ class YtCliGUI:
 
     def clear_downloads_from_view(self):
         """Limpia la lista registrada de descargas sin eliminar archivos del disco."""
-        is_es = self.current_lang == "es"
         s = self.get_strings()
-        msg_ask = (
-            "¿Borrar toda la lista de descargas?\n(No eliminará los archivos guardados en el disco.)"
-            if is_es else
-            "Clear all download history entries?\n(Files saved on disk will NOT be deleted.)"
-        )
-        if messagebox.askyesno(s["downloads"], msg_ask):
+        if messagebox.askyesno(s["downloads"], s["dl_confirm_clear"]):
             save_downloads_data([])
             self.show_last_search()
 
@@ -1560,7 +1554,8 @@ class YtCliGUI:
         if not vals or len(vals) < 2:
             return
         ch = (vals[1] or "").strip()
-        if not ch or ch in ("Enlace Web", "NA"):
+        ignored = {d.get("web_link", "") for d in GUI_STRINGS.values()} | {"Enlace Web", "Web Link", "NA"}
+        if not ch or ch in ignored:
             return
         query = f"@{ch}" if " " not in ch else ch
         self._set_query_text(query)
@@ -1601,10 +1596,9 @@ class YtCliGUI:
         selected = self.tree.selection()
         if not selected:
             return
-        is_es = self.current_lang == "es"
+        s = self.get_strings()
         if delete_disk:
-            msg = "¿Eliminar también los archivos seleccionados del disco?" if is_es else "Also delete the selected files from disk?"
-            if not messagebox.askyesno(self.get_strings()["downloads"], msg):
+            if not messagebox.askyesno(s["downloads"], s["dl_confirm_delete_disk"]):
                 return
         ids_to_remove = []
         for item_id in selected:
@@ -1686,8 +1680,9 @@ class YtCliGUI:
         dialog.focus_force()
 
     def open_about_dialog(self):
+        s = self.get_strings()
         dialog = tk.Toplevel(self.root)
-        dialog.title("Acerca de YT-CLI")
+        dialog.title(s["about_title"])
         dialog.geometry("440x300")
         dialog.resizable(False, False)
         self._register_child_dialog(dialog)
@@ -1697,16 +1692,9 @@ class YtCliGUI:
 
         lbl_title = tk.Label(dialog, text="YT-CLI v1.7", font=("sans-serif", 13, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl_title.pack(pady=(14, 2))
-
-        is_en = self.current_lang != "es"
-        desc_txt = (
-            "Ultralight high-performance multimedia client\nfor resource-constrained and modern systems."
-            if is_en else
-            "Cliente multimedia ultraligero y de alto rendimiento\npara equipos de bajos recursos y sistemas modernos."
-        )
         lbl_desc = tk.Label(
             dialog,
-            text=desc_txt,
+            text=s["about_desc"],
             font=("sans-serif", 8),
             bg=pal["card_bg"],
             fg=pal["fg_muted"],
@@ -1717,13 +1705,13 @@ class YtCliGUI:
         box = tk.Frame(dialog, bg=pal["entry_bg"], bd=1, relief="solid", padx=12, pady=10)
         box.pack(fill=tk.X, padx=20, pady=(0, 12))
 
-        tk.Label(box, text="Author:" if is_en else "Autor:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=0, column=0, sticky="w", pady=2)
+        tk.Label(box, text=s["about_author"], font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=0, column=0, sticky="w", pady=2)
         tk.Label(box, text="Kenny Waddell (@KennyWaddell)", font=("sans-serif", 8), bg=pal["entry_bg"], fg=pal["accent_green"]).grid(row=0, column=1, sticky="w", padx=8, pady=2)
 
-        tk.Label(box, text="Collaboration:" if is_en else "Colaboración:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=1, column=0, sticky="w", pady=2)
+        tk.Label(box, text=s["about_collab"], font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=1, column=0, sticky="w", pady=2)
         tk.Label(box, text="Google DeepMind / Antigravity", font=("sans-serif", 8), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=1, column=1, sticky="w", padx=8, pady=2)
 
-        tk.Label(box, text="License:" if is_en else "Licencia:", font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=2, column=0, sticky="w", pady=2)
+        tk.Label(box, text=s["about_license"], font=("sans-serif", 8, "bold"), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=2, column=0, sticky="w", pady=2)
         tk.Label(box, text="GNU General Public License v3 (GPLv3)", font=("sans-serif", 8), bg=pal["entry_bg"], fg=pal["fg"]).grid(row=2, column=1, sticky="w", padx=8, pady=2)
 
         def open_repo():
@@ -1731,7 +1719,7 @@ class YtCliGUI:
 
         btn_repo = tk.Button(
             dialog,
-            text="View Repository on GitHub" if is_en else "Ver Repositorio en GitHub",
+            text=s["about_repo"],
             command=open_repo,
             font=("sans-serif", 8, "bold"),
             bg=pal["btn_primary_bg"],
@@ -1746,7 +1734,7 @@ class YtCliGUI:
 
         btn_close = tk.Button(
             dialog,
-            text="Cerrar",
+            text=s["close"],
             command=dialog.destroy,
             font=("sans-serif", 8),
             bg=pal["btn_secondary_bg"],
@@ -1761,10 +1749,10 @@ class YtCliGUI:
 
     def open_help_dialog(self):
         """Muestra una guía rápida de uso y atajos para YT-CLI."""
-        is_en = self.current_lang != "es"
+        s = self.get_strings()
         dialog = tk.Toplevel(self.root)
-        dialog.title("YT-CLI Help" if is_en else "Ayuda de YT-CLI")
-        dialog.geometry("520x420")
+        dialog.title(s["help_title"])
+        dialog.geometry("540x430")
         dialog.resizable(False, False)
         self._register_child_dialog(dialog)
 
@@ -1773,51 +1761,13 @@ class YtCliGUI:
 
         tk.Label(
             dialog,
-            text="Quick Guide & Tips" if is_en else "Guía Rápida y Consejos",
+            text=s["help_heading"],
             font=("sans-serif", 11, "bold"),
             bg=pal["card_bg"],
             fg=pal["fg"]
         ).pack(pady=(12, 6))
 
-        help_text = (
-            "1. Search, Playlists & Channel Jump:\n"
-            "   • Type keywords, a YouTube/playlist URL, or @channel (e.g. @kennyw).\n"
-            "   • Paste a playlist URL and click Search/Enter to list its videos.\n"
-            "   • Right-click any result to browse videos from that channel.\n\n"
-            "2. Playback Controls:\n"
-            "   • Double-click or press Enter on a result to play video.\n"
-            "   • Inside MPV: Space (Pause), Left/Right (Seek), F (Fullscreen),\n"
-            "     9/0 (Volume), L (Loop in audio mode), Q (Quit & save position).\n\n"
-            "3. Downloads, Trimming & Folder:\n"
-            "   • In MP4/Audio options choose quality, FPS, and format.\n"
-            "   • Time trimming accepts HH:MM:SS or MM:SS (e.g. 00:01:30 to 00:05:00).\n"
-            "   • Click 'Downloads' to play finished files, resume stopped ones, or delete.\n"
-            "   • Click 'Open' next to Browse to open your destination folder.\n"
-            "   • Subtitles are fetched in the active interface language (.srt + .txt).\n\n"
-            "4. Cookies & Updates:\n"
-            "   • Select your browser in Cookies only for age-restricted/private videos.\n"
-            "   • If YouTube changes something, open Options -> 'Update yt-dlp'\n"
-            "     (or replace bin/yt-dlp.exe manually) without reinstalling YT-CLI."
-        ) if is_en else (
-            "1. Búsqueda, Playlists y Salto a Canal:\n"
-            "   • Escribe palabras clave, enlace de vídeo/playlist o @canal (ej. @kennyw).\n"
-            "   • Pega una URL de playlist y pulsa Buscar o Enter para listar sus vídeos.\n"
-            "   • Haz clic derecho sobre cualquier resultado para ver vídeos de ese canal.\n\n"
-            "2. Controles de Reproducción:\n"
-            "   • Haz doble clic o pulsa Enter sobre un resultado para reproducirlo.\n"
-            "   • Dentro de MPV: Espacio (Pausa), Flechas (Avanzar/Retroceder),\n"
-            "     F (Pantalla completa), 9/0 (Volumen), L (Bucle en audio), Q (Salir).\n\n"
-            "3. Descargas, Recorte y Carpeta:\n"
-            "   • En Opciones de MP4/Audio puedes elegir resolución, FPS y formato.\n"
-            "   • El recorte acepta HH:MM:SS o MM:SS (ej. 00:01:30 a 00:05:00).\n"
-            "   • Pulsa 'Descargas' para reproducir, reanudar interrumpidas o borrar.\n"
-            "   • Pulsa 'Abrir' junto a Examinar para abrir tu carpeta de destino.\n"
-            "   • Los subtítulos se descargan en el idioma actual de la interfaz (.srt + .txt).\n\n"
-            "4. Cookies y Actualizaciones:\n"
-            "   • Usa Cookies solo para vídeos privados o con restricción de edad.\n"
-            "   • Si YouTube cambia su sistema, abre Opciones -> 'Actualizar yt-dlp'\n"
-            "     (o reemplaza bin/yt-dlp.exe) sin tener que reinstalar YT-CLI."
-        )
+        help_text = s["help_body"]
 
         txt_box = tk.Text(
             dialog,
@@ -1837,7 +1787,7 @@ class YtCliGUI:
 
         tk.Button(
             dialog,
-            text="Close" if is_en else "Cerrar",
+            text=s["close"],
             command=dialog.destroy,
             font=("sans-serif", 9, "bold"),
             bg=pal["btn_primary_bg"],
@@ -1851,23 +1801,24 @@ class YtCliGUI:
 
     def open_history_settings(self):
         data = load_history_data()
+        s = self.get_strings()
 
         dialog = tk.Toplevel(self.root)
-        dialog.title("Opciones" if self.current_lang == "es" else "Options")
-        dialog.geometry("410x295")
+        dialog.title(s["opts_title"])
+        dialog.geometry("490x315")
         dialog.resizable(False, False)
         self._register_child_dialog(dialog)
 
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl = tk.Label(dialog, text="Historial y Reproducción" if self.current_lang == "es" else "History & Playback", font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl = tk.Label(dialog, text=s["opts_heading"], font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl.pack(pady=(14, 8))
 
         var_enabled = tk.BooleanVar(value=data.get("enabled", True))
         cb = tk.Checkbutton(
             dialog,
-            text="¿Desea recordar el historial de vídeos vistos?",
+            text=s["opts_remember_hist"],
             variable=var_enabled,
             font=("sans-serif", 9),
             bg=pal["card_bg"],
@@ -1877,7 +1828,6 @@ class YtCliGUI:
         )
         cb.pack(pady=(0, 4), padx=20, anchor="w")
 
-        s = self.get_strings()
         var_sb_mark = tk.BooleanVar(value=self.sponsorblock_mark)
         cb_sb_mark = tk.Checkbutton(
             dialog,
@@ -1891,7 +1841,13 @@ class YtCliGUI:
         )
         cb_sb_mark.pack(pady=(0, 6), padx=20, anchor="w")
 
-        lbl_limit = tk.Label(dialog, text="Límite: hasta 50 vídeos recientes (rotación automática)", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg_muted"])
+        lbl_limit = tk.Label(
+            dialog,
+            text=s["opts_limit_info"],
+            font=("sans-serif", 8),
+            bg=pal["card_bg"],
+            fg=pal["fg_muted"]
+        )
         lbl_limit.pack(pady=(0, 10), padx=22, anchor="w")
 
         upd_box = tk.Frame(dialog, bg=pal["card_bg"])
@@ -1913,13 +1869,13 @@ class YtCliGUI:
         self._btn_update_ytdlp_ref = btn_upd
 
         def clear_all():
-            if messagebox.askyesno("Borrar Historial", "¿Estás seguro de que deseas borrar todo el historial?"):
+            if messagebox.askyesno(s["hist_clear_all"], s["opts_clear_hist_confirm"]):
                 data["history"] = []
                 save_history_data(data)
                 dialog.destroy()
                 for item in self.tree.get_children():
                     self.tree.delete(item)
-                self.status_var.set("Historial eliminado por completo.")
+                self.status_var.set(s["opts_hist_cleared"])
 
         def save_and_close():
             data["enabled"] = var_enabled.get()
@@ -1929,43 +1885,37 @@ class YtCliGUI:
             settings["sponsorblock_mark"] = self.sponsorblock_mark
             save_settings(settings)
             dialog.destroy()
-            state_str = "activado" if data["enabled"] else "desactivado"
-            self.status_var.set(f"Historial {state_str}.")
+            self.status_var.set(s["opts_hist_enabled"] if data["enabled"] else s["opts_hist_disabled"])
 
         btn_box = tk.Frame(dialog, bg=pal["card_bg"])
         btn_box.pack(fill=tk.X, padx=20, pady=(6, 0))
-
-        is_en = self.current_lang != "es"
-        btn_clear = tk.Button(btn_box, text="Clear History" if is_en else "Borrar Historial", command=clear_all, font=("sans-serif", 8), bg="#7f1d1d", fg="#ffffff", relief="flat", padx=10, pady=3, cursor="hand2")
+        btn_clear = tk.Button(btn_box, text=s["hist_clear_all"], command=clear_all, font=("sans-serif", 8), bg="#7f1d1d", fg="#ffffff", relief="flat", padx=10, pady=3, cursor="hand2")
         btn_clear.pack(side=tk.LEFT)
 
-        btn_ok = tk.Button(btn_box, text="Save and Close" if is_en else "Guardar y Cerrar", command=save_and_close, font=("sans-serif", 8, "bold"), bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], relief="flat", padx=10, pady=3, cursor="hand2")
+        btn_ok = tk.Button(btn_box, text=s["opts_save_close"], command=save_and_close, font=("sans-serif", 8, "bold"), bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], relief="flat", padx=10, pady=3, cursor="hand2")
         btn_ok.pack(side=tk.RIGHT)
 
     def start_ytdlp_update(self):
         """Lanza yt-dlp -U en segundo plano solo cuando no hay descargas ni reproducción activas."""
-        is_en = self.current_lang != "es"
+        lang = self.current_lang
+        s = self.get_strings(lang)
         if self._updating_ytdlp:
             return
         if self.active_process or self.mpv_process:
-            messagebox.showwarning(
-                "Update yt-dlp" if is_en else "Actualizar yt-dlp",
-                "Stop active playback or downloads before updating yt-dlp."
-                if is_en else
-                "Detén la reproducción o descarga activa antes de actualizar yt-dlp."
-            )
+            messagebox.showwarning(s["upd_title"], s["upd_stop_active"])
             return
 
         self._updating_ytdlp = True
         if self._btn_update_ytdlp_ref is not None and self._btn_update_ytdlp_ref.winfo_exists():
             self._btn_update_ytdlp_ref.config(state=tk.DISABLED)
         self.prog_bar.start(10)
-        self.status_var.set("Checking for yt-dlp update..." if is_en else "Comprobando actualización de yt-dlp...")
+        self.status_var.set(s["upd_checking"])
 
-        threading.Thread(target=self._ytdlp_update_worker, args=(is_en,), daemon=True).start()
+        threading.Thread(target=self._ytdlp_update_worker, args=(lang,), daemon=True).start()
 
-    def _ytdlp_update_worker(self, is_en):
+    def _ytdlp_update_worker(self, lang):
         ytdlp_cmd = get_binary_path("yt-dlp")
+        s = self.get_strings(lang)
         try:
             res = subprocess.run(
                 [ytdlp_cmd, "-U"],
@@ -1980,17 +1930,18 @@ class YtCliGUI:
             out_txt = (res.stdout or "").strip()
             self.msg_queue.put(("ytdlp_update_done", (res.returncode == 0, out_txt)))
         except Exception as exc:
-            err = f"Could not run yt-dlp update: {exc}" if is_en else f"No se pudo actualizar yt-dlp: {exc}"
+            err = s["upd_exec_err"].format(exc=exc)
             self.msg_queue.put(("ytdlp_update_done", (False, err)))
 
     def play_selected(self, audio_only=False, safe_software=False, override_urls=None):
-        is_en = self.current_lang != "es"
+        lang = self.current_lang
+        s = self.get_strings(lang)
         if override_urls is not None:
             urls = list(override_urls)
         elif self.is_viewing_downloads:
             entry = self._get_selected_download_entry()
             if not entry:
-                messagebox.showinfo("Play" if is_en else "Reproducir", "Select a download from the list." if is_en else "Selecciona una descarga de la lista.")
+                messagebox.showinfo(s["play_title"], s["play_select_dl"])
                 return
             fpath = entry.get("filepath", "")
             if fpath and os.path.isfile(fpath):
@@ -2005,9 +1956,7 @@ class YtCliGUI:
         else:
             urls = self.get_selected_urls()
             if not urls:
-                msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
-                title = "Play" if is_en else "Reproducir"
-                messagebox.showinfo(title, msg)
+                messagebox.showinfo(s["play_title"], s["select_video"])
                 return
 
         mpv_cmd = get_binary_path("mpv")
@@ -2037,14 +1986,9 @@ class YtCliGUI:
             self.prog_bar.start(10)
         self.btn_cancel.config(state=tk.NORMAL)
         if safe_software:
-            self.status_var.set(
-                "⚠ Retrying playback in safe software mode..." if is_en
-                else "⚠ Reintentando reproducción en modo software seguro..."
-            )
-        elif is_en:
-            self.status_var.set("⏳ Loading YouTube buffer... player will launch in ~10-15s")
+            self.status_var.set(s["play_safe_retry"])
         else:
-            self.status_var.set("⏳ Cargando buffer de YouTube... el reproductor abrirá automáticamente en ~10-15s")
+            self.status_var.set(s["play_buffering"])
 
         mpv_log_path = os.path.join(get_config_dir(), "last_mpv.log")
 
@@ -2066,17 +2010,15 @@ class YtCliGUI:
             if is_browser_installed(cookie_choice):
                 cmd.append(f'--ytdl-raw-options-append=cookies-from-browser={cookie_choice.lower()}')
             else:
-                warn_msg = f"Notice: Browser {cookie_choice} not detected. Continuing without cookies..." if is_en else f"Aviso: Navegador {cookie_choice} no detectado. Continuando sin cookies..."
-                self.status_var.set(warn_msg)
+                self.status_var.set(s["cookie_missing_warn"].format(browser=cookie_choice))
 
         if self.sponsorblock_mark:
             cmd.append(f"--ytdl-raw-options-append=sponsorblock-mark={self.get_sponsorblock_cats()}")
 
         if audio_only:
             # Ventana interactiva de audio con barra de tiempo, volumen, pausa y bucle
-            title_text = "YT-CLI - Audio Player" if is_en else "YT-CLI - Reproductor de Audio"
             cmd += [
-                f"--title={title_text}",
+                f"--title={s['mpv_audio_title']}",
                 "--vid=no",
                 "--hwdec=no" if IS_WINDOWS else "--hwdec=auto-safe",
                 "--force-window=yes",
@@ -2086,7 +2028,6 @@ class YtCliGUI:
             ]
         else:
             fmt = self.get_format_string()
-            title_text = "YT-CLI - Video Player" if is_en else "YT-CLI - Reproductor de Vídeo"
             if IS_WINDOWS:
                 vo_opt = "--vo=direct3d,sdl,gpu" if safe_software else "--vo=gpu,direct3d,sdl"
                 # Limitar hwdec a d3d11va/dxva2 evita que auto-safe pruebe vaapi-copy (vaapi-win32),
@@ -2096,7 +2037,7 @@ class YtCliGUI:
                 vo_opt = "--vo=gpu,direct3d,sdl"
                 hwdec_opt = "--hwdec=auto-safe"
             cmd += [
-                f"--title={title_text}",
+                f"--title={s['mpv_video_title']}",
                 vo_opt,
                 hwdec_opt,
                 f"--ytdl-format={fmt}"
@@ -2144,18 +2085,16 @@ class YtCliGUI:
                             if "ERROR:" in ln or "[e][" in ln or "Failed to decrypt with DPAPI" in ln
                         ]
                         raw_detail = err_lines[-1] if err_lines else ""
-                        friendly = format_ytdlp_error(raw_detail, is_en=is_en) if raw_detail else ""
+                        friendly = format_ytdlp_error(raw_detail, lang=lang) if raw_detail else ""
                         if friendly and friendly != raw_detail:
                             self.status_var.set(friendly.splitlines()[0])
                             messagebox.showwarning("YT-CLI", friendly)
                         elif raw_detail:
-                            err_text = f"Player closed (code {poll_code}): {raw_detail}" if is_en else f"El reproductor cerró (código {poll_code}): {raw_detail}"
-                            self.status_var.set(err_text)
+                            self.status_var.set(s["mpv_closed_detail"].format(code=poll_code, detail=raw_detail))
                         else:
-                            err_text = f"Player closed unexpectedly (exit code {poll_code})." if is_en else f"El reproductor se cerró inesperadamente (código {poll_code})."
-                            self.status_var.set(err_text)
+                            self.status_var.set(s["mpv_closed_unexpected"].format(code=poll_code))
                     else:
-                        self.status_var.set("Ready." if is_en else "Listo.")
+                        self.status_var.set(s["ready"])
                     return
 
                 if not shown_playing:
@@ -2164,16 +2103,7 @@ class YtCliGUI:
                         if not self._is_downloading:
                             self.prog_bar.stop()
                         shown_playing = True
-                        if audio_only:
-                            self.status_var.set(
-                                "♫ Playing. Controls: Space (Pause), Arrows (Seek), 9/0 (Volume), L (Loop)" if is_en
-                                else "♫ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), 9/0 (Volumen), L (Bucle)"
-                            )
-                        else:
-                            self.status_var.set(
-                                "▶ Playing. Controls: Space (Pause), Arrows (Seek), F (Fullscreen)" if is_en
-                                else "▶ En reproducción. Controles: Espacio (Pausa), Flechas (Avanzar/Retroceder), F (Pantalla completa)"
-                            )
+                        self.status_var.set(s["mpv_playing_audio"] if audio_only else s["mpv_playing_video"])
 
                 self.root.after(1200, lambda: monitor_mpv(shown_playing))
 
@@ -2181,9 +2111,8 @@ class YtCliGUI:
         except FileNotFoundError:
             self.prog_bar.stop()
             self.btn_cancel.config(state=tk.DISABLED)
-            self.status_var.set("Ready." if is_en else "Listo.")
-            err_msg = f"Executable '{mpv_cmd}' not found." if is_en else f"No se encontró el ejecutable '{mpv_cmd}'."
-            messagebox.showerror("Error", err_msg)
+            self.status_var.set(s["ready"])
+            messagebox.showerror("Error", s["mpv_not_found"].format(cmd=mpv_cmd))
 
     def _get_selected_duration_seconds(self):
         selected = self.tree.selection()
@@ -2194,11 +2123,12 @@ class YtCliGUI:
             return parse_duration_to_seconds(vals[2])
         return 0
 
-    def _create_trim_widget(self, parent, pal, is_en):
+    def _create_trim_widget(self, parent, pal, s=None):
         """Crea selector clicable HH:MM:SS tipo reloj pre-rellenado con la duración del vídeo."""
+        s = s or self.get_strings()
         trim_frame = tk.LabelFrame(
             parent,
-            text="Trim Time Section" if is_en else "Recortar fragmento de tiempo",
+            text=s["trim_section"],
             font=("sans-serif", 8, "bold"),
             bg=pal["card_bg"],
             fg=pal["fg_muted"],
@@ -2211,7 +2141,7 @@ class YtCliGUI:
         var_trim = tk.BooleanVar(value=False)
         cb_trim = tk.Checkbutton(
             trim_frame,
-            text="Enable time trimming" if is_en else "Activar recorte por tiempo",
+            text=s["trim_enable"],
             variable=var_trim,
             bg=pal["card_bg"],
             fg=pal["fg"],
@@ -2228,7 +2158,7 @@ class YtCliGUI:
         def _make_clock_row(label_text, init_vals, auto_cb):
             row = tk.Frame(trim_frame, bg=pal["card_bg"])
             row.pack(fill=tk.X, pady=2)
-            tk.Label(row, text=label_text, width=16, anchor="w", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+            tk.Label(row, text=label_text, width=18, anchor="w", font=("sans-serif", 8), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
             vars_hms = []
             for idx, (max_v, init_v) in enumerate(zip((99, 59, 59), init_vals)):
                 if idx > 0:
@@ -2254,8 +2184,8 @@ class YtCliGUI:
         def _auto_enable(_event=None):
             var_trim.set(True)
 
-        start_vars = _make_clock_row("From (HH:MM:SS):" if is_en else "Desde (HH:MM:SS):", (0, 0, 0), _auto_enable)
-        end_vars = _make_clock_row("To (HH:MM:SS):" if is_en else "Hasta (HH:MM:SS):", (end_h, end_m, end_s), _auto_enable)
+        start_vars = _make_clock_row(s["trim_from"], (0, 0, 0), _auto_enable)
+        end_vars = _make_clock_row(s["trim_to"], (end_h, end_m, end_s), _auto_enable)
 
         def get_trim_spec():
             if not var_trim.get():
@@ -2267,48 +2197,44 @@ class YtCliGUI:
         return get_trim_spec
 
     def prompt_video_download(self):
+        s = self.get_strings()
         urls = self.get_selected_urls()
         if not urls:
-            is_en = self.current_lang != "es"
-            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
-            title = "Download Video" if is_en else "Descargar Vídeo"
-            messagebox.showinfo(title, msg)
+            messagebox.showinfo(s["dl_video_opts"], s["select_video"])
             return
 
-        is_en = self.current_lang != "es"
-        s = self.get_strings()
         dialog = tk.Toplevel(self.root)
-        dialog.title("Video Download Options (MP4)" if is_en else "Opciones de Descarga de Vídeo (MP4)")
-        dialog.geometry("440x475")
+        dialog.title(s["dl_video_opts"])
+        dialog.geometry("460x475")
         dialog.resizable(False, False)
         self._register_child_dialog(dialog)
 
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl = tk.Label(dialog, text="Video Download Options (MP4)" if is_en else "Opciones de Descarga MP4", font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl = tk.Label(dialog, text=s["dl_video_opts"], font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl.pack(pady=(12, 6))
 
         row_q = tk.Frame(dialog, bg=pal["card_bg"])
         row_q.pack(fill=tk.X, padx=24, pady=3)
-        tk.Label(row_q, text="Resolution:" if is_en else "Resolución:", font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        tk.Label(row_q, text=s["dl_resolution"], font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
         var_q = tk.StringVar(value=self.var_quality.get())
         cb_q = ttk.Combobox(row_q, textvariable=var_q, values=["360", "480", "720", "1080"], width=8, state="readonly")
         cb_q.pack(side=tk.RIGHT)
 
         row_fps = tk.Frame(dialog, bg=pal["card_bg"])
         row_fps.pack(fill=tk.X, padx=24, pady=3)
-        tk.Label(row_fps, text="Frame rate (FPS):" if is_en else "Tasa de cuadros (FPS):", font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        tk.Label(row_fps, text=s["dl_fps_rate"], font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
         var_f = tk.StringVar(value=self.var_fps.get())
         cb_f = ttk.Combobox(row_fps, textvariable=var_f, values=["30", "60", "Auto"], width=8, state="readonly")
         cb_f.pack(side=tk.RIGHT)
 
         var_thumb = tk.BooleanVar(value=True)
-        cb_th = tk.Checkbutton(dialog, text="Embed thumbnail in MP4" if is_en else "Incrustar carátula en el MP4", variable=var_thumb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_th = tk.Checkbutton(dialog, text=s["dl_embed_thumb"], variable=var_thumb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
         cb_th.pack(pady=(6, 2), padx=22, anchor="w")
 
         var_split = tk.BooleanVar(value=False)
-        cb_split = tk.Checkbutton(dialog, text="Split by chapters (--split-chapters)" if is_en else "Dividir en capítulos automáticos", variable=var_split, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_split = tk.Checkbutton(dialog, text=s["dl_split_chapters"], variable=var_split, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
         cb_split.pack(pady=2, padx=22, anchor="w")
 
         row_sb = tk.Frame(dialog, bg=pal["card_bg"])
@@ -2320,7 +2246,7 @@ class YtCliGUI:
         cb_sb_prof = ttk.Combobox(row_sb, textvariable=var_sb_prof, values=["Basic", "Standard", "All"], width=8, state="readonly")
         cb_sb_prof.pack(side=tk.RIGHT)
 
-        get_trim_spec = self._create_trim_widget(dialog, pal, is_en)
+        get_trim_spec = self._create_trim_widget(dialog, pal, s)
 
         def confirm():
             q = var_q.get()
@@ -2332,12 +2258,7 @@ class YtCliGUI:
             try:
                 trim_spec = get_trim_spec()
             except ValueError:
-                msg_err = (
-                    "Invalid trim range. Ensure 'To' is greater than 'From'."
-                    if is_en else
-                    "Rango de recorte inválido. Asegúrate de que 'Hasta' sea mayor que 'Desde'."
-                )
-                messagebox.showwarning("Trim" if is_en else "Recorte", msg_err, parent=dialog)
+                messagebox.showwarning(s["trim_title"], s["trim_invalid"], parent=dialog)
                 return
             self.sponsorblock_enabled = sb
             self.sponsorblock_profile = sb_prof
@@ -2348,46 +2269,42 @@ class YtCliGUI:
             dialog.destroy()
             self.start_download(mode="video", quality=q, fps=fps, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec, sponsorblock=sb, sponsorblock_profile=sb_prof)
 
-        btn = tk.Button(dialog, text="Start Download" if is_en else "Iniciar Descarga", command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=5, cursor="hand2")
+        btn = tk.Button(dialog, text=s["start_download"], command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=5, cursor="hand2")
         btn.pack(pady=(4, 0))
 
     def prompt_audio_download(self):
+        s = self.get_strings()
         urls = self.get_selected_urls()
         if not urls:
-            is_en = self.current_lang != "es"
-            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
-            title = "Download Audio" if is_en else "Descarga de Audio"
-            messagebox.showinfo(title, msg)
+            messagebox.showinfo(s["dl_audio_opts"], s["select_video"])
             return
 
-        is_en = self.current_lang != "es"
-        s = self.get_strings()
         dialog = tk.Toplevel(self.root)
-        dialog.title("Audio Download Options" if is_en else "Opciones de Descarga de Audio")
-        dialog.geometry("440x520")
+        dialog.title(s["dl_audio_opts"])
+        dialog.geometry("460x520")
         dialog.resizable(False, False)
         self._register_child_dialog(dialog)
 
         pal = THEMES[self.current_theme]
         dialog.configure(bg=pal["card_bg"])
 
-        lbl = tk.Label(dialog, text="Audio Download Options" if is_en else "Opciones de Descarga de Audio", font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
+        lbl = tk.Label(dialog, text=s["dl_audio_opts"], font=("sans-serif", 10, "bold"), bg=pal["card_bg"], fg=pal["fg"])
         lbl.pack(pady=(12, 6))
 
         row_fmt = tk.Frame(dialog, bg=pal["card_bg"])
         row_fmt.pack(fill=tk.X, padx=24, pady=3)
-        tk.Label(row_fmt, text="Audio Format:" if is_en else "Formato de audio:", font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
+        tk.Label(row_fmt, text=s["dl_audio_format"], font=("sans-serif", 9), bg=pal["card_bg"], fg=pal["fg"]).pack(side=tk.LEFT)
         var_afmt = tk.StringVar(value="MP3")
         cb_afmt = ttk.Combobox(row_fmt, textvariable=var_afmt, values=["MP3", "M4A", "Opus", "FLAC"], width=8, state="readonly")
         cb_afmt.pack(side=tk.RIGHT)
 
         frame_mp3 = tk.Frame(dialog, bg=pal["card_bg"])
         frame_mp3.pack(fill=tk.X, padx=24, pady=4)
-        tk.Label(frame_mp3, text="MP3 Bitrate:" if is_en else "Calidad MP3:", font=("sans-serif", 8, "bold"), bg=pal["card_bg"], fg=pal["fg_muted"]).pack(anchor="w", pady=(0, 2))
+        tk.Label(frame_mp3, text=s["dl_mp3_bitrate"], font=("sans-serif", 8, "bold"), bg=pal["card_bg"], fg=pal["fg_muted"]).pack(anchor="w", pady=(0, 2))
         var_bitrate = tk.StringVar(value="320k")
-        for br, label in [("320k", "320 kbps (Máxima fidelidad)" if not is_en else "320 kbps (Max quality)"),
-                          ("192k", "192 kbps (Recomendado)" if not is_en else "192 kbps (Standard)"),
-                          ("128k", "128 kbps (Ahorro de espacio)" if not is_en else "128 kbps (Lightweight)")]:
+        for br, label in [("320k", s["dl_br_320"]),
+                          ("192k", s["dl_br_192"]),
+                          ("128k", s["dl_br_128"])]:
             rb = tk.Radiobutton(frame_mp3, text=label, variable=var_bitrate, value=br, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
             rb.pack(anchor="w", padx=10)
 
@@ -2401,11 +2318,11 @@ class YtCliGUI:
         cb_afmt.bind("<<ComboboxSelected>>", on_fmt_change)
 
         var_thumb = tk.BooleanVar(value=True)
-        cb_th = tk.Checkbutton(dialog, text="Embed official cover art" if is_en else "Incrustar carátula oficial en el archivo", variable=var_thumb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_th = tk.Checkbutton(dialog, text=s["dl_audio_thumb"], variable=var_thumb, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
         cb_th.pack(pady=(4, 2), padx=22, anchor="w")
 
         var_split = tk.BooleanVar(value=False)
-        cb_split = tk.Checkbutton(dialog, text="Split tracks/chapters (--split-chapters)" if is_en else "Dividir en pistas/capítulos automáticos", variable=var_split, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
+        cb_split = tk.Checkbutton(dialog, text=s["dl_audio_split"], variable=var_split, bg=pal["card_bg"], fg=pal["fg"], selectcolor=pal["entry_bg"], activebackground=pal["card_bg"])
         cb_split.pack(pady=2, padx=22, anchor="w")
 
         row_sb = tk.Frame(dialog, bg=pal["card_bg"])
@@ -2417,7 +2334,7 @@ class YtCliGUI:
         cb_sb_prof = ttk.Combobox(row_sb, textvariable=var_sb_prof, values=["Basic", "Standard", "All"], width=8, state="readonly")
         cb_sb_prof.pack(side=tk.RIGHT)
 
-        get_trim_spec = self._create_trim_widget(dialog, pal, is_en)
+        get_trim_spec = self._create_trim_widget(dialog, pal, s)
 
         def confirm():
             fmt = var_afmt.get().lower()
@@ -2429,12 +2346,7 @@ class YtCliGUI:
             try:
                 trim_spec = get_trim_spec()
             except ValueError:
-                msg_err = (
-                    "Invalid trim range. Ensure 'To' is greater than 'From'."
-                    if is_en else
-                    "Rango de recorte inválido. Asegúrate de que 'Hasta' sea mayor que 'Desde'."
-                )
-                messagebox.showwarning("Trim" if is_en else "Recorte", msg_err, parent=dialog)
+                messagebox.showwarning(s["trim_title"], s["trim_invalid"], parent=dialog)
                 return
             self.sponsorblock_enabled = sb
             self.sponsorblock_profile = sb_prof
@@ -2445,7 +2357,7 @@ class YtCliGUI:
             dialog.destroy()
             self.start_download(mode="audio", audio_format=fmt, bitrate=br, embed_thumb=thumb, split_chapters=split, trim_section=trim_spec, sponsorblock=sb, sponsorblock_profile=sb_prof)
 
-        btn = tk.Button(dialog, text="Start Download" if is_en else "Iniciar Descarga", command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=5, cursor="hand2")
+        btn = tk.Button(dialog, text=s["start_download"], command=confirm, bg=pal["btn_primary_bg"], fg=pal["btn_primary_fg"], font=("sans-serif", 9, "bold"), relief="flat", bd=0, padx=14, pady=5, cursor="hand2")
         btn.pack(pady=(4, 0))
 
     def start_download(self, mode="video", quality="720", fps="30", audio_format="mp3", bitrate="320k", embed_thumb=True, split_chapters=False, trim_section="", sponsorblock=False, sponsorblock_profile="basic", override_items=None):
@@ -2464,20 +2376,13 @@ class YtCliGUI:
                 urls = self.get_selected_urls()
                 dl_items = [(u, u) for u in urls]
 
-        is_en = self.current_lang != "es"
+        s = self.get_strings()
         if self._is_downloading:
-            messagebox.showinfo(
-                "Download" if is_en else "Descargar",
-                "A download or subtitle extraction is already in progress."
-                if is_en else
-                "Ya hay una descarga o extracción de subtítulos en curso."
-            )
+            messagebox.showinfo(s["dl_title"], s["dl_busy"])
             return
 
         if not dl_items:
-            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
-            title = "Download" if is_en else "Descargar"
-            messagebox.showinfo(title, msg)
+            messagebox.showinfo(s["dl_title"], s["select_video"])
             return
 
         self._is_downloading = True
@@ -2487,9 +2392,7 @@ class YtCliGUI:
         self.btn_extract_subs.config(state=tk.DISABLED)
         self.btn_cancel.config(state=tk.NORMAL)
         self.prog_bar.start(10)
-        is_en = self.current_lang != "es"
-        msg = f"Starting download ({len(dl_items)} items)..." if is_en else f"Iniciando descarga ({len(dl_items)} elemento(s))..."
-        self.status_var.set(msg)
+        self.status_var.set(s["dl_starting"].format(count=len(dl_items)))
 
         thread = threading.Thread(
             target=self._download_worker,
@@ -2533,7 +2436,7 @@ class YtCliGUI:
             pass
         return log_path
 
-    def _run_ytdlp_download_cmd(self, cmd, env, idx, total_urls, is_en):
+    def _run_ytdlp_download_cmd(self, cmd, env, idx, total_urls, s):
         """Ejecuta un comando yt-dlp de descarga, reportando progreso y capturando salida."""
         proc = subprocess.Popen(
             cmd,
@@ -2573,13 +2476,13 @@ class YtCliGUI:
                     except ValueError:
                         pass
             elif "[info]" in line_clean:
-                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {'Preparing download...' if is_en else 'Preparando descarga...'}"))
+                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {s['dl_preparing']}"))
             elif "time=" in line_clean and "bitrate=" in line_clean:
                 m_t = re.search(r"time=(\S+)", line_clean)
                 t_str = m_t.group(1) if m_t else ""
-                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {'Trimming/processing' if is_en else 'Procesando fragmento'} {t_str}".strip()))
+                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {s['dl_trimming']} {t_str}".strip()))
             elif "[ExtractAudio]" in line_clean or "[Merger]" in line_clean:
-                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {'Converting/merging...' if is_en else 'Convirtiendo/uniendo...'}"))
+                self.msg_queue.put(("status", f"[{idx}/{total_urls}] {s['dl_converting']}"))
             elif "has already been downloaded" in line:
                 already_exists = True
             elif "ffmpeg is not installed" in line or "won't be merged" in line:
@@ -2590,14 +2493,11 @@ class YtCliGUI:
         proc.wait()
         return proc.returncode, reported_files, already_exists, merge_failed, last_error_msg, all_output_lines
 
-    def _fallback_local_trim_download(self, base_cmd, url, trim_section, ffmpeg_cmd, env, idx, total_urls, is_en):
+    def _fallback_local_trim_download(self, base_cmd, url, trim_section, ffmpeg_cmd, env, idx, total_urls, s):
         """Respaldo para Windows 7/8.1 cuando FFmpeg falla al verificar TLS directo: descarga con yt-dlp y recorta en local."""
         tmp_dir = tempfile.mkdtemp(prefix="_ytcli_trim_", dir=self.download_dir)
         try:
-            self.msg_queue.put((
-                "status",
-                f"[{idx}/{total_urls}] {'Legacy Windows TLS store; downloading & trimming locally...' if is_en else 'TLS heredado detectado; descargando y recortando localmente...'}"
-            ))
+            self.msg_queue.put(("status", f"[{idx}/{total_urls}] {s['dl_legacy_tls']}"))
             fb_cmd = []
             i = 0
             while i < len(base_cmd):
@@ -2613,7 +2513,7 @@ class YtCliGUI:
                 i += 1
             fb_cmd.extend(["--force-overwrites", url])
 
-            rc, rep_files, _, merge_failed, err_msg, out_lines = self._run_ytdlp_download_cmd(fb_cmd, env, idx, total_urls, is_en)
+            rc, rep_files, _, merge_failed, err_msg, out_lines = self._run_ytdlp_download_cmd(fb_cmd, env, idx, total_urls, s)
             if self.is_cancelled:
                 return False, "", err_msg, out_lines
             if rc != 0 or merge_failed:
@@ -2627,11 +2527,11 @@ class YtCliGUI:
                         if os.path.isfile(cand) and os.path.getsize(cand) > 0:
                             src_files.append(cand)
             if not src_files:
-                return False, "", err_msg or "Fallback download produced no file", out_lines
+                return False, "", err_msg or s["dl_item_failed"].format(idx=idx, rc=rc), out_lines
 
             src_path = src_files[-1]
             dest_path = os.path.join(self.download_dir, os.path.basename(src_path))
-            self.msg_queue.put(("status", f"[{idx}/{total_urls}] {'Trimming local file...' if is_en else 'Recortando archivo localmente...'}"))
+            self.msg_queue.put(("status", f"[{idx}/{total_urls}] {s['dl_trimming_local']}"))
 
             trim_cmd = build_ffmpeg_local_trim_cmd(ffmpeg_cmd, src_path, dest_path, trim_section)
             ff_proc = subprocess.Popen(
@@ -2667,7 +2567,8 @@ class YtCliGUI:
         ytdlp_cmd = get_binary_path("yt-dlp")
         ffmpeg_cmd = get_binary_path("ffmpeg")
         bin_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-        is_en = self.current_lang != "es"
+        lang = self.current_lang
+        s = self.get_strings(lang)
         has_error = False
         last_error_msg = ""
 
@@ -2700,8 +2601,7 @@ class YtCliGUI:
             final_filepath = ""
             item_status = "error"
 
-            status_text = f"Downloading [{idx}/{len(urls)}]: connecting..." if is_en else f"Descargando [{idx}/{len(urls)}]: conectando..."
-            self.msg_queue.put(("status", status_text))
+            self.msg_queue.put(("status", s["dl_connecting"].format(idx=idx, total=len(urls))))
 
             base_cmd = [
                 ytdlp_cmd,
@@ -2802,14 +2702,14 @@ class YtCliGUI:
                 dl_start_time = time.time()
                 try:
                     rc, reported_files, already_exists, merge_failed, last_error_msg, all_output_lines = self._run_ytdlp_download_cmd(
-                        cmd, env, idx, len(urls), is_en
+                        cmd, env, idx, len(urls), s
                     )
                     if self.is_cancelled:
                         break
 
                     if rc != 0 and trim_section and any("Peer certificate failed verification" in l for l in all_output_lines):
                         fb_ok, fb_path, fb_err, fb_lines = self._fallback_local_trim_download(
-                            base_cmd, url, trim_section, ffmpeg_cmd, env, idx, len(urls), is_en
+                            base_cmd, url, trim_section, ffmpeg_cmd, env, idx, len(urls), s
                         )
                         all_output_lines.extend(fb_lines)
                         if self.is_cancelled:
@@ -2828,8 +2728,8 @@ class YtCliGUI:
                         has_error = True
                         log_path = self._write_download_log(all_output_lines)
                         if not last_error_msg:
-                            last_error_msg = f"Item {idx} failed (exit code {rc})." if is_en else f"Error en elemento {idx}. Código: {rc}."
-                        last_error_msg = format_ytdlp_error(last_error_msg, is_en=is_en)
+                            last_error_msg = s["dl_item_failed"].format(idx=idx, rc=rc)
+                        last_error_msg = format_ytdlp_error(last_error_msg, lang=lang)
                         detail_lines = [l.strip() for l in all_output_lines if l.strip() and "[download]" not in l]
                         tail = "\n".join(detail_lines[-4:])
                         err_popup = f"{last_error_msg}\n\n{tail}\n\nLog: {log_path}" if tail else f"{last_error_msg}\n\nLog: {log_path}"
@@ -2839,11 +2739,7 @@ class YtCliGUI:
                     if merge_failed:
                         has_error = True
                         log_path = self._write_download_log(all_output_lines)
-                        last_error_msg = (
-                            f"FFmpeg was not detected or failed to merge audio and video.\nLog: {log_path}"
-                            if is_en else
-                            f"FFmpeg no fue detectado o falló al unir el audio y vídeo.\nLog: {log_path}"
-                        )
+                        last_error_msg = s["dl_ffmpeg_missing"].format(log=log_path)
                         self.msg_queue.put(("error", last_error_msg))
                         break
 
@@ -2860,13 +2756,7 @@ class YtCliGUI:
                         item_status = "completed"
                     if not verified_files and not self._has_recent_download_file(dl_start_time):
                         if already_exists and not force_overwrite:
-                            title_ask = "File Already Exists" if is_en else "Archivo Existente"
-                            msg_ask = (
-                                "This file already exists in the destination folder.\nDo you want to download it again?"
-                                if is_en else
-                                "Este archivo ya existe en la carpeta de destino.\n¿Quieres descargarlo de nuevo?"
-                            )
-                            if self._ask_yesno_from_worker(title_ask, msg_ask):
+                            if self._ask_yesno_from_worker(s["dl_exists_title"], s["dl_exists_msg"]):
                                 force_overwrite = True
                                 continue
                             item_status = "completed"
@@ -2875,11 +2765,7 @@ class YtCliGUI:
                         has_error = True
                         log_path = self._write_download_log(all_output_lines)
                         tail = "".join(all_output_lines[-6:]).strip()
-                        last_error_msg = (
-                            f"Download finished but no file was found in:\n{self.download_dir}\n\nDetails:\n{tail}\n\nLog: {log_path}"
-                            if is_en else
-                            f"El proceso terminó pero no se generó ningún archivo en:\n{self.download_dir}\n\nDetalle:\n{tail}\n\nLog: {log_path}"
-                        )
+                        last_error_msg = s["dl_no_file_found"].format(dir=self.download_dir, tail=tail, log=log_path)
                         self.msg_queue.put(("error", last_error_msg))
                         break
 
@@ -2887,7 +2773,7 @@ class YtCliGUI:
                 except Exception as e:
                     if not self.is_cancelled:
                         has_error = True
-                        last_error_msg = f"Download error: {str(e)}" if is_en else f"Error en descarga: {str(e)}"
+                        last_error_msg = s["dl_error_msg"].format(err=str(e))
                         self.msg_queue.put(("error", last_error_msg))
                     break
                 finally:
@@ -2918,20 +2804,13 @@ class YtCliGUI:
             self.msg_queue.put(("download_done", None))
 
     def start_subtitles_download(self):
-        is_en = self.current_lang != "es"
+        s = self.get_strings()
         if self._is_downloading:
-            messagebox.showinfo(
-                "Subtitles" if is_en else "Subtítulos",
-                "A download or subtitle extraction is already in progress."
-                if is_en else
-                "Ya hay una descarga o extracción de subtítulos en curso."
-            )
+            messagebox.showinfo(s["sub_title"], s["dl_busy"])
             return
         urls = self.get_selected_urls()
         if not urls:
-            msg = "Select at least one video from the list." if is_en else "Selecciona al menos un vídeo de la lista."
-            title = "Subtitles" if is_en else "Subtítulos"
-            messagebox.showinfo(title, msg)
+            messagebox.showinfo(s["sub_title"], s["select_video"])
             return
 
         self._is_downloading = True
@@ -2941,9 +2820,7 @@ class YtCliGUI:
         self.btn_extract_subs.config(state=tk.DISABLED)
         self.btn_cancel.config(state=tk.NORMAL)
         self.prog_bar.start(10)
-        is_en = self.current_lang != "es"
-        msg = f"Extracting subtitles/transcripts ({len(urls)} items)..." if is_en else f"Extrayendo subtítulos y transcripción ({len(urls)} elemento(s))..."
-        self.status_var.set(msg)
+        self.status_var.set(s["sub_starting"].format(count=len(urls)))
 
         thread = threading.Thread(
             target=self._subtitles_worker,
@@ -2956,7 +2833,8 @@ class YtCliGUI:
         ytdlp_cmd = get_binary_path("yt-dlp")
         ffmpeg_cmd = get_binary_path("ffmpeg")
         bin_dir = os.path.dirname(os.path.abspath(ffmpeg_cmd))
-        is_en = self.current_lang != "es"
+        lang = self.current_lang
+        s = self.get_strings(lang)
         has_error = False
         last_error_msg = ""
 
@@ -2969,8 +2847,7 @@ class YtCliGUI:
         for idx, url in enumerate(urls, start=1):
             if self.is_cancelled:
                 break
-            status_text = f"Extracting subtitles [{idx}/{len(urls)}]..." if is_en else f"Extrayendo subtítulos [{idx}/{len(urls)}]..."
-            self.msg_queue.put(("status", status_text))
+            self.msg_queue.put(("status", s["sub_extracting"].format(idx=idx, total=len(urls))))
 
             cmd = [
                 ytdlp_cmd,
@@ -3033,19 +2910,15 @@ class YtCliGUI:
                 if proc.returncode != 0 and not recent_srts:
                     has_error = True
                     if sub_error_line:
-                        last_error_msg = format_ytdlp_error(sub_error_line, is_en=is_en)
+                        last_error_msg = format_ytdlp_error(sub_error_line, lang=lang)
                     else:
-                        last_error_msg = f"Subtitle extraction item {idx} failed (code {proc.returncode})" if is_en else f"Error en elemento {idx} al extraer subtítulos (código {proc.returncode})"
+                        last_error_msg = s["sub_item_failed"].format(idx=idx, rc=proc.returncode)
                     self.msg_queue.put(("error", last_error_msg))
                     break
 
                 if not recent_srts:
                     has_error = True
-                    last_error_msg = (
-                        f"No subtitles available in '{self.current_lang}' for item {idx}."
-                        if is_en else
-                        f"No hay subtítulos disponibles en idioma '{self.current_lang}' para el elemento {idx}."
-                    )
+                    last_error_msg = s["sub_none_avail"].format(lang=lang, idx=idx)
                     self.msg_queue.put(("error", last_error_msg))
                     break
 
@@ -3076,7 +2949,7 @@ class YtCliGUI:
             except Exception as e:
                 if not self.is_cancelled:
                     has_error = True
-                    last_error_msg = f"Extraction error: {str(e)}" if is_en else f"Error en extracción: {str(e)}"
+                    last_error_msg = s["sub_error_msg"].format(err=str(e))
                     self.msg_queue.put(("error", last_error_msg))
                 break
             finally:
@@ -3091,16 +2964,16 @@ class YtCliGUI:
 
     def cancel_process(self):
         self.is_cancelled = True
-        is_en = self.current_lang != "es"
+        s = self.get_strings()
         if self.mpv_process:
             terminate_process_tree(self.mpv_process)
             self.mpv_process = None
-            self.status_var.set("Playback stopped." if is_en else "Reproducción detenida.")
+            self.status_var.set(s["playback_stopped"])
 
         if self.active_process:
             terminate_process_tree(self.active_process)
             self.active_process = None
-            self.status_var.set("Download cancelled." if is_en else "Descarga cancelada.")
+            self.status_var.set(s["dl_cancelled"])
 
         self._is_downloading = False
         self.btn_cancel.config(state=tk.DISABLED)
@@ -3150,7 +3023,7 @@ class YtCliGUI:
                     self._reset_progress_bar(active=False)
                     self.btn_search.config(state=tk.NORMAL)
                     self.status_var.set(data)
-                    messagebox.showerror("Aviso", data)
+                    messagebox.showerror(self.get_strings()["notice"], data)
                 elif msg == "status":
                     self.status_var.set(data)
                 elif msg == "progress":
@@ -3164,7 +3037,7 @@ class YtCliGUI:
                         evt.set()
                 elif msg == "error":
                     self.status_var.set(data)
-                    messagebox.showerror("Aviso", data)
+                    messagebox.showerror(self.get_strings()["notice"], data)
                 elif msg == "download_cancelled":
                     self._is_downloading = False
                     self._reset_progress_bar(active=False)
@@ -3172,8 +3045,7 @@ class YtCliGUI:
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
-                    is_en = self.current_lang != "es"
-                    self.status_var.set("Download cancelled by user." if is_en else "Descarga cancelada por el usuario.")
+                    self.status_var.set(self.get_strings()["dl_cancelled_user"])
                 elif msg == "download_error":
                     self._is_downloading = False
                     self._reset_progress_bar(active=False)
@@ -3181,8 +3053,7 @@ class YtCliGUI:
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
-                    is_en = self.current_lang != "es"
-                    self.status_var.set("Operation finished with errors." if is_en else "Operación finalizada con errores.")
+                    self.status_var.set(self.get_strings()["op_finished_err"])
                 elif msg == "download_done":
                     self._is_downloading = False
                     self._reset_progress_bar(active=False)
@@ -3190,27 +3061,24 @@ class YtCliGUI:
                     self.btn_dl_audio.config(state=tk.NORMAL)
                     self.btn_extract_subs.config(state=tk.NORMAL)
                     self.btn_cancel.config(state=tk.DISABLED)
-                    is_en = self.current_lang != "es"
-                    self.status_var.set("Downloads finished!" if is_en else "¡Descargas finalizadas!")
-                    title_done = "Completed" if is_en else "Completado"
-                    msg_done = f"Downloads saved to:\n{self.download_dir}" if is_en else f"Descargas guardadas en:\n{self.download_dir}"
-                    messagebox.showinfo(title_done, msg_done)
+                    s = self.get_strings()
+                    self.status_var.set(s["dl_finished"])
+                    messagebox.showinfo(s["completed_title"], s["dl_saved_to"].format(dir=self.download_dir))
                 elif msg == "ytdlp_update_done":
                     ok, out_txt = data
                     self._updating_ytdlp = False
                     self._reset_progress_bar(active=False)
                     if self._btn_update_ytdlp_ref is not None and self._btn_update_ytdlp_ref.winfo_exists():
                         self._btn_update_ytdlp_ref.config(state=tk.NORMAL)
-                    is_en = self.current_lang != "es"
-                    title_upd = "Update yt-dlp" if is_en else "Actualizar yt-dlp"
+                    s = self.get_strings()
                     if ok:
-                        msg_ok = out_txt or ("yt-dlp is up to date." if is_en else "yt-dlp ya está actualizado.")
-                        self.status_var.set("yt-dlp updated / checked." if is_en else "yt-dlp actualizado / comprobado.")
-                        messagebox.showinfo(title_upd, msg_ok)
+                        msg_ok = out_txt or s["upd_ok_default"]
+                        self.status_var.set(s["upd_ok_status"])
+                        messagebox.showinfo(s["upd_title"], msg_ok)
                     else:
-                        msg_err = out_txt or ("Failed to update yt-dlp." if is_en else "No se pudo actualizar yt-dlp.")
-                        self.status_var.set("yt-dlp update failed." if is_en else "Error al actualizar yt-dlp.")
-                        messagebox.showwarning(title_upd, msg_err)
+                        msg_err = out_txt or s["upd_err_default"]
+                        self.status_var.set(s["upd_err_status"])
+                        messagebox.showwarning(s["upd_title"], msg_err)
         except queue.Empty:
             pass
         finally:
