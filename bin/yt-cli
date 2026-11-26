@@ -112,6 +112,9 @@ ensure_config_file() {
 
 # Maximum framerate limit (30 | 60 | auto)
 # MAX_FPS=30
+
+# Default search result limit (1-200)
+# SEARCH_LIMIT=25
 EOF
     fi
 }
@@ -120,8 +123,17 @@ ensure_config_file
 MAX_FPS="30"
 SPONSORBLOCK_CATS="sponsor,selfpromo"
 SPONSORBLOCK_MARK="false"
+SEARCH_LIMIT="25"
+DURATION_FILTER_EXPR=""
+DURATION_FILTER_LABEL=""
 
 if [ -f "$CONFIG_FILE" ]; then
+    if grep -Eq '^[[:space:]]*SEARCH_LIMIT=' "$CONFIG_FILE" 2>/dev/null; then
+        cfg_limit=$(grep -E '^[[:space:]]*SEARCH_LIMIT=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
+        if [[ "$cfg_limit" =~ ^[0-9]+$ ]] && [ "$cfg_limit" -ge 1 ] && [ "$cfg_limit" -le 200 ]; then
+            SEARCH_LIMIT="$cfg_limit"
+        fi
+    fi
     if grep -Eq '^[[:space:]]*ENABLE_ARIA2=(true|1)' "$CONFIG_FILE" 2>/dev/null; then
         if command -v aria2c >/dev/null 2>&1; then
             aria2_conns=$(grep -E '^[[:space:]]*ARIA2_CONNECTIONS=' "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"'\'' ' || true)
@@ -155,6 +167,126 @@ clear_download_archive() {
         rm -f "$ARCHIVE_FILE"
     fi
     echo -e "${C_GREEN}${MSG_ARCHIVE_CLEARED:-✔ Registro de descargas previas reiniciado correctamente.}${C_RESET}"
+}
+
+# Convertir expresión de duración (ej: 5m, 1h, 1h30m, 90s, 300) a segundos
+parse_duration_to_seconds() {
+    local raw="${1,,}"
+    raw="${raw// /}"
+    if [[ "$raw" =~ ^([0-9]+)h([0-9]+)m$ ]]; then
+        echo $(( ${BASH_REMATCH[1]} * 3600 + ${BASH_REMATCH[2]} * 60 ))
+        return 0
+    elif [[ "$raw" =~ ^([0-9]+)h$ ]]; then
+        echo $(( ${BASH_REMATCH[1]} * 3600 ))
+        return 0
+    elif [[ "$raw" =~ ^([0-9]+)m$ ]]; then
+        echo $(( ${BASH_REMATCH[1]} * 60 ))
+        return 0
+    elif [[ "$raw" =~ ^([0-9]+)s?$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+    return 1
+}
+
+# Configurar límite de resultados por búsqueda (1-200)
+set_search_limit() {
+    local val="${1:-}"
+    val="${val// /}"
+
+    if [ -z "$val" ]; then
+        echo -e "\n${C_CYAN}${MSG_LIMIT_MENU_TITLE:-Límite actual de resultados:} ${C_BOLD}${SEARCH_LIMIT}${C_RESET}"
+        echo -e "  ${C_GREEN}[1]${C_RESET} 25  ${C_GRAY}(${MSG_LIMIT_OPT_25:-rápido, por defecto})${C_RESET}"
+        echo -e "  ${C_GREEN}[2]${C_RESET} 50  ${C_GRAY}(${MSG_LIMIT_OPT_50:-medio})${C_RESET}"
+        echo -e "  ${C_GREEN}[3]${C_RESET} 100 ${C_GRAY}(${MSG_LIMIT_OPT_100:-amplio, ideal con filtros de duración})${C_RESET}"
+        echo -e "  ${C_GREEN}[4]${C_RESET} ${MSG_LIMIT_OPT_CUSTOM:-Cantidad personalizada (1-200)}"
+        echo -ne "${C_CYAN}${MSG_LIMIT_CHOOSE:-Elige opción [1-4]: }${C_RESET}"
+        local choice=""
+        read -r choice || true
+        case "$choice" in
+            1) val="25" ;;
+            2) val="50" ;;
+            3) val="100" ;;
+            4)
+                echo -ne "${C_CYAN}${MSG_LIMIT_ENTER:-Introduce cantidad (1-200): }${C_RESET}"
+                read -r val || true
+                ;;
+            *) return 0 ;;
+        esac
+    fi
+
+    if [[ "$val" =~ ^[0-9]+$ ]] && [ "$val" -ge 1 ] && [ "$val" -le 200 ]; then
+        SEARCH_LIMIT="$val"
+        echo -e "${C_GREEN}✔ ${MSG_LIMIT_SET:-Límite de resultados ajustado a:} ${C_BOLD}${SEARCH_LIMIT}${C_RESET}"
+    else
+        echo -e "${C_RED}[ERROR]${C_RESET} ${MSG_LIMIT_INVALID:-Indica un número válido entre 1 y 200 (ej: :limit 100).}"
+    fi
+}
+
+# Configurar filtro de duración (>5m, >15m, >1h, <10m, off)
+set_duration_filter() {
+    local arg="${1:-}"
+    arg="${arg// /}"
+    arg="${arg,,}"
+
+    if [ -z "$arg" ]; then
+        local current_disp="${DURATION_FILTER_LABEL:-${MSG_FILTER_NONE:-Todas}}"
+        echo -e "\n${C_CYAN}${MSG_DUR_MENU_TITLE:-Filtro de duración actual:} ${C_BOLD}${current_disp}${C_RESET}"
+        echo -e "  ${C_GREEN}[1]${C_RESET} >= 5m   ${C_GRAY}(${MSG_DUR_OPT_5M:-más de 5 minutos})${C_RESET}"
+        echo -e "  ${C_GREEN}[2]${C_RESET} >= 15m  ${C_GRAY}(${MSG_DUR_OPT_15M:-más de 15 minutos})${C_RESET}"
+        echo -e "  ${C_GREEN}[3]${C_RESET} >= 30m  ${C_GRAY}(${MSG_DUR_OPT_30M:-más de 30 minutos})${C_RESET}"
+        echo -e "  ${C_GREEN}[4]${C_RESET} >= 1h   ${C_GRAY}(${MSG_DUR_OPT_1H:-más de 1 hora})${C_RESET}"
+        echo -e "  ${C_GREEN}[5]${C_RESET} <= 10m  ${C_GRAY}(${MSG_DUR_OPT_SHORT:-menos de 10 minutos})${C_RESET}"
+        echo -e "  ${C_GREEN}[6]${C_RESET} ${MSG_DUR_OPT_CUSTOM:-Personalizado (ej: >20m, <5m, >1h30m)}"
+        echo -e "  ${C_GREEN}[0]${C_RESET} ${MSG_DUR_OPT_OFF:-Quitar filtro (mostrar todos)}"
+        echo -ne "${C_CYAN}${MSG_DUR_CHOOSE:-Elige opción [0-6]: }${C_RESET}"
+        local choice=""
+        read -r choice || true
+        case "$choice" in
+            1) arg=">5m" ;;
+            2) arg=">15m" ;;
+            3) arg=">30m" ;;
+            4) arg=">1h" ;;
+            5) arg="<10m" ;;
+            6)
+                echo -ne "${C_CYAN}${MSG_DUR_ENTER:-Introduce filtro (ej: >5m, >1h, <10m, off): }${C_RESET}"
+                read -r arg || true
+                arg="${arg// /}"
+                arg="${arg,,}"
+                ;;
+            0) arg="off" ;;
+            *) return 0 ;;
+        esac
+    fi
+
+    if [[ "$arg" == "off" || "$arg" == "0" || "$arg" == "all" || "$arg" == "none" || "$arg" == "reset" ]]; then
+        DURATION_FILTER_EXPR=""
+        DURATION_FILTER_LABEL=""
+        echo -e "${C_GREEN}✔ ${MSG_DUR_CLEARED:-Filtro de duración desactivado.}${C_RESET}"
+        return 0
+    fi
+
+    local op=">="
+    local op_label=">="
+    local raw_dur="$arg"
+    if [[ "$arg" =~ ^(>=|>|\+)(.+)$ ]]; then
+        op=">="
+        op_label=">="
+        raw_dur="${BASH_REMATCH[2]}"
+    elif [[ "$arg" =~ ^(<=|<|-)(.+)$ ]]; then
+        op="<="
+        op_label="<="
+        raw_dur="${BASH_REMATCH[2]}"
+    fi
+
+    local secs=""
+    if secs=$(parse_duration_to_seconds "$raw_dur"); then
+        DURATION_FILTER_EXPR="duration ${op} ${secs}"
+        DURATION_FILTER_LABEL="${op_label} ${raw_dur}"
+        echo -e "${C_GREEN}✔ ${MSG_DUR_SET:-Filtro de duración activo:} ${C_BOLD}${DURATION_FILTER_LABEL}${C_RESET}"
+    else
+        echo -e "${C_RED}[ERROR]${C_RESET} ${MSG_DUR_INVALID:-Formato inválido. Usa por ejemplo: :dur >5m, :dur >15m, :dur >1h, :dur <10m o :dur off.}"
+    fi
 }
 
 # Resolución del directorio de idiomas (i18n)
@@ -1264,21 +1396,27 @@ search_and_play() {
     if [[ "$query" =~ ^@([a-zA-Z0-9_.-]+)[[:space:]]+(.+)$ ]]; then
         local ch="${BASH_REMATCH[1]}"
         local term="${BASH_REMATCH[2]}"
-        echo -ne "${C_YELLOW}${MSG_SEARCHING_CHANNEL:-Buscando en canal} @${ch}:${C_RESET} \"${C_BOLD}${term}${C_RESET}\"... \r"
-        search_args=("https://www.youtube.com/@${ch}/search?query=${term}" "--playlist-end" "25")
+        echo -ne "${C_YELLOW}${MSG_SEARCHING_CHANNEL:-Buscando en canal} @${ch}:${C_RESET} \"${C_BOLD}${term}${C_RESET}\" (${SEARCH_LIMIT})... \r"
+        search_args=("https://www.youtube.com/@${ch}/search?query=${term}" "--playlist-end" "$SEARCH_LIMIT")
     elif [[ "$query" =~ ^@([a-zA-Z0-9_.-]+)$ ]]; then
         local ch="${BASH_REMATCH[1]}"
-        echo -ne "${C_YELLOW}${MSG_FETCHING_CHANNEL:-Obteniendo videos del canal} @${ch}...${C_RESET} \r"
-        search_args=("https://www.youtube.com/@${ch}/videos" "--playlist-end" "25")
+        echo -ne "${C_YELLOW}${MSG_FETCHING_CHANNEL:-Obteniendo videos del canal} @${ch}${C_RESET} (${SEARCH_LIMIT})... \r"
+        search_args=("https://www.youtube.com/@${ch}/videos" "--playlist-end" "$SEARCH_LIMIT")
     else
-        echo -ne "${C_YELLOW}${MSG_SEARCHING:-Buscando en YouTube:} \"${C_BOLD}${query}${C_RESET}\"... \r"
-        search_args=("ytsearch25:${query}")
+        echo -ne "${C_YELLOW}${MSG_SEARCHING:-Buscando en YouTube:} \"${C_BOLD}${query}${C_RESET}\" (${SEARCH_LIMIT})... \r"
+        search_args=("ytsearch${SEARCH_LIMIT}:${query}")
+    fi
+
+    local dur_args=()
+    if [ -n "$DURATION_FILTER_EXPR" ]; then
+        dur_args=("--match-filter" "$DURATION_FILTER_EXPR")
     fi
 
     local search_results
     search_results=$("$BIN_YTDLP" \
         ${COOKIE_YTDL_ARGS[@]+"${COOKIE_YTDL_ARGS[@]}"} \
         ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"} \
+        ${dur_args[@]+"${dur_args[@]}"} \
         "${search_args[@]}" \
         --flat-playlist \
         --skip-download \
@@ -1288,6 +1426,9 @@ search_and_play() {
 
     if [ -z "$search_results" ]; then
         echo -e "${C_RED}${MSG_NO_RESULTS:-No se encontraron resultados para:}${C_RESET} \"$query\""
+        if [ -n "$DURATION_FILTER_LABEL" ]; then
+            echo -e "${C_GRAY}${MSG_NO_RESULTS_FILTER_HINT:-Filtro activo:}${C_RESET} ${C_CYAN}${DURATION_FILTER_LABEL}${C_RESET} (${MSG_LIMIT_LABEL:-Resultados:} ${SEARCH_LIMIT}). ${C_GRAY}${MSG_NO_RESULTS_TRY_LIMIT:-Prueba subir :limit 100 o quitar con :dur off.}${C_RESET}"
+        fi
         return
     fi
 
@@ -1394,6 +1535,8 @@ show_banner() {
     echo -e "  ${C_YELLOW}${MSG_BANNER_SEARCHES:-Búsquedas: término | @canal | @canal término | enlaces URL}${C_RESET}"
     echo -e "  ${C_YELLOW}${MSG_BANNER_CMD_1:-Comandos:  [:help] Ayuda     [:h] Historial    [:c] Cookies}${C_RESET}"
     echo -e "  ${C_YELLOW}${MSG_BANNER_CMD_2:-           [:u] Actualizar   [:lang] Idioma    [:about] Créditos [q] Salir}${C_RESET}"
+    local dur_disp="${DURATION_FILTER_LABEL:-${MSG_FILTER_NONE:-Todas}}"
+    echo -e "  ${C_GRAY}${MSG_BANNER_FILTERS:-Filtros:}   ${MSG_LIMIT_LABEL:-Resultados:} ${C_CYAN}${SEARCH_LIMIT}${C_GRAY} ([:limit])  •  ${MSG_DUR_LABEL:-Duración:} ${C_CYAN}${dur_disp}${C_GRAY} ([:dur])${C_RESET}"
     echo -e "${C_GRAY}  ────────────────────────────────────────────────────────────${C_RESET}\n"
 }
 
@@ -1415,6 +1558,8 @@ show_interactive_help() {
     echo -e "    ${C_GREEN}:u${C_RESET} o ${C_GREEN}:update${C_RESET}                 ${MSG_HELP_CMD_UPDATE:-Actualiza yt-dlp a la última versión oficial}"
     echo -e "    ${C_GREEN}:clear-archive${C_RESET} o ${C_GREEN}:ca${C_RESET}           ${MSG_HELP_CMD_ARCHIVE:-Reinicia el registro de descargas previas}"
     echo -e "    ${C_GREEN}:c${C_RESET}                            ${MSG_HELP_CMD_COOKIE}"
+    echo -e "    ${C_GREEN}:limit [1-200]${C_RESET}                ${MSG_HELP_CMD_LIMIT:-Ajustar cantidad de resultados (ej: :limit 50, :limit 100)}"
+    echo -e "    ${C_GREEN}:dur [>5m|>1h|off]${C_RESET}            ${MSG_HELP_CMD_DUR:-Filtrar por duración mínima o máxima (ej: :dur >15m)}"
     echo -e "    ${C_GREEN}:lang [es|en]${C_RESET}                 ${MSG_HELP_CMD_LANG}"
     echo -e "    ${C_GREEN}:about${C_RESET}                        ${MSG_HELP_CMD_ABOUT:-Muestra los créditos y acerca de YT-CLI}"
     echo -e "    ${C_GREEN}q${C_RESET}                             ${MSG_HELP_CMD_QUIT}\n"
@@ -1477,6 +1622,9 @@ main() {
                 echo "      --clear-history           Borrar todo el historial guardado"
                 echo "      --clear-archive           Reiniciar el registro de vídeos ya descargados"
                 echo "      --fps [30|60|auto]        Límite de FPS en reproducción (por defecto 30)"
+                echo "      --limit [1-200]           Cantidad de resultados por búsqueda (por defecto 25)"
+                echo "      --min-duration [dur]      Duración mínima (ej: 5m, 15m, 1h)"
+                echo "      --max-duration [dur]      Duración máxima (ej: 10m, 1h)"
                 echo "  -sb,--sponsorblock            Omitir patrocinadores al descargar (SponsorBlock)"
                 echo "      --sb-profile [modo]       Perfil SponsorBlock: basic | standard | all"
                 echo "      --sb-mark                 Marcar capítulos SponsorBlock al reproducir en MPV"
@@ -1576,13 +1724,35 @@ main() {
                     shift 1
                 fi
                 ;;
+            --limit)
+                if [ $# -gt 1 ]; then
+                    if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1 ] && [ "$2" -le 200 ]; then
+                        SEARCH_LIMIT="$2"
+                    fi
+                    shift 2
+                else
+                    shift 1
+                fi
+                ;;
+            --min-duration)
+                if [ $# -gt 1 ]; then
+                    local min_sec=""
+                    if min_sec=$(parse_duration_to_seconds "$2"); then
+                        DURATION_FILTER_EXPR="duration >= ${min_sec}"
+                        DURATION_FILTER_LABEL=">= $2"
+                    fi
+                    shift 2
+                else
+                    shift 1
+                fi
+                ;;
             --max-duration)
                 if [ $# -gt 1 ]; then
-                    local dur="$2"
-                    if [[ "$dur" =~ ^([0-9]+)m$ ]]; then
-                        dur=$((${BASH_REMATCH[1]} * 60))
+                    local max_sec=""
+                    if max_sec=$(parse_duration_to_seconds "$2"); then
+                        DURATION_FILTER_EXPR="duration <= ${max_sec}"
+                        DURATION_FILTER_LABEL="<= $2"
                     fi
-                    FILTER_ARGS+=("--match-filter" "duration <= $dur")
                     shift 2
                 else
                     shift 1
@@ -1759,6 +1929,22 @@ main() {
         if [[ "$query" == ":clear-archive" || "$query" == ":ca" ]]; then
             clear_download_archive
             sleep 1.2
+            continue
+        fi
+
+        if [[ "$query" =~ ^:(limit|n)([[:space:]]+.*)?$ ]]; then
+            local lim_arg
+            lim_arg=$(echo "$query" | awk '{print $2}')
+            set_search_limit "$lim_arg"
+            sleep 1.0
+            continue
+        fi
+
+        if [[ "$query" =~ ^:(dur|duration|duracion)([[:space:]]+.*)?$ ]]; then
+            local dur_arg
+            dur_arg=$(echo "$query" | awk '{print $2}')
+            set_duration_filter "$dur_arg"
+            sleep 1.0
             continue
         fi
 

@@ -192,7 +192,17 @@ yt-cli -m "https://www.youtube.com/watch?v=..."
 yt-cli -d "https://www.tiktok.com/@user/video/..."
 ```
 
-### 5. Switching Languages
+### 5. Result Limits & Duration Filters (Linux CLI)
+```bash
+# Inside the interactive console:
+:limit 100          # Set results per search (1-200, default 25)
+:dur >15m           # Filter videos longer than 15 minutes (also >5m, >1h30m, <10m, off)
+
+# Or from the terminal:
+yt-cli --limit 100 --min-duration 1h "ambient music"
+```
+
+### 6. Switching Languages
 ```bash
 # Set language via command line:
 yt-cli --lang en
@@ -346,6 +356,7 @@ Community translations are warmly welcomed! The localization system is modular a
 - [x] GitHub Build Provenance Attestation (`actions/attest-build-provenance`) + CI parity tests (v1.6).
 - [x] Windows GUI Downloads view (play, resume interrupted `.part`, open folder, clear list, delete) & visual playlist loading in table (v1.7).
 - [x] Real-time 0–100% download progress bar, `HH:MM:SS` trimming (with local Win 7/8.1 TLS fallback), `Options -> Update yt-dlp`, one-click Open Folder button, and built-in Help dialog (v1.7).
+- [x] Linux CLI search result limit (`:limit` / `--limit`) & duration filter (`:dur` / `--min-duration` / `--max-duration`), plus full 10-language parity across Windows GUI dialogs & sort headers (v1.7.1).
 
 ---
 

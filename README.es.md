@@ -195,6 +195,27 @@ yt-cli -m "https://www.youtube.com/watch?v=..."
 yt-cli -d "https://www.tiktok.com/@usuario/video/..."
 ```
 
+### 5. Límite de Resultados y Filtro de Duración (CLI Linux)
+```bash
+# Dentro de la consola interactiva:
+:limit 100          # Cambia el número de resultados (1-200, por defecto 25)
+:dur >15m           # Filtra vídeos de más de 15 minutos (también >5m, >1h30m, <10m, off)
+
+# O directo desde la terminal:
+yt-cli --limit 100 --min-duration 1h "musica ambiental"
+```
+
+### 6. Cambiar Idioma
+```bash
+# Cambiar idioma por línea de comandos:
+yt-cli --lang es
+yt-cli --lang en
+
+# O dentro de la consola interactiva:
+:lang es
+:lang en
+```
+
 ---
 
 ## 🪟 Uso en Windows (Versión Portable Standalone)
@@ -338,6 +359,7 @@ sudo yt-dlp -U
 - [x] Atestación criptográfica de procedencia en GitHub Actions + tests de paridad en CI (v1.6).
 - [x] Vista de Descargas en GUI Windows (reproducir, reanudar `.part`, abrir carpeta, limpiar lista, borrar) y carga visual de playlists en tabla (v1.7).
 - [x] Barra de progreso real 0–100%, recorte `HH:MM:SS` (con respaldo local TLS para Win 7/8.1), botón `Actualizar yt-dlp` en Opciones, Abrir carpeta y diálogo de Ayuda integrado (v1.7).
+- [x] Límite de resultados (`:limit` / `--limit`) y filtro de duración (`:dur` / `--min-duration` / `--max-duration`) en CLI Linux, más paridad completa en 10 idiomas en diálogos y ordenamiento de columnas de la GUI Windows (v1.7.1).
 
 ---
 

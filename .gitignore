@@ -11,3 +11,10 @@ windows/dist/
 windows/build/
 windows/_tmp_dl/
 *.zip
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.api
+cookies.txt
